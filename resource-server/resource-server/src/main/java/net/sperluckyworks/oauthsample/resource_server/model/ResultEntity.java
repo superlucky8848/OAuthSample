@@ -6,24 +6,24 @@ public class ResultEntity<T>
     private ErrorInfo errorInfo;
     private T result;
 
-    public static <T> ResultEntity<T> from(T data)
+    public static <T> ResultEntity<T> success(T data)
     {
         return new ResultEntity<T>(true, null, data);
     }
 
-    public static <T> ResultEntity<T> fromError(String errorName, String errorMessage, String errorDetails) 
+    public static <T> ResultEntity<T> fail(String errorName, String errorMessage, String errorDetails) 
     {
         ErrorInfo errorInfo = new ErrorInfo(errorName, errorMessage, errorDetails);
         return new ResultEntity<T>(false, errorInfo, null);
     }
 
-    public static <T> ResultEntity<T> fromThrowable(Throwable throwable) 
+    public static <T> ResultEntity<T> fail(Throwable throwable) 
     {
         ErrorInfo errorInfo = new ErrorInfo(throwable);
         return new ResultEntity<T>(false, errorInfo, null);
     }
 
-    public static <T> ResultEntity<T> fromThrowable(String errorName, Throwable throwable) 
+    public static <T> ResultEntity<T> fail(String errorName, Throwable throwable) 
     {
         ErrorInfo errorInfo = new ErrorInfo(throwable);
         errorInfo.setErrorName(errorName);

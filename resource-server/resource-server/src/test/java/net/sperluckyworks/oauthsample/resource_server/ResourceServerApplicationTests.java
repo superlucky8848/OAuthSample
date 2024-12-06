@@ -4,10 +4,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class ResourceServerApplicationTests {
-
+class ResourceServerApplicationTests extends BasicTests
+{
 	@Test
-	void contextLoads() {
-	}
+	void contextLoads() 
+	{
+		testStart();
 
+		logger.info("contextLoads");
+
+		testEnd();
+	}
 }

@@ -24,6 +24,6 @@ public class MainController
         String name)
     {
         String result = String.format("Hello %s!", name);
-        return ResultEntity.from(result);
+        return ResultEntity.success(result);
     }
 }
