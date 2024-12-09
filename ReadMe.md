@@ -2,9 +2,9 @@
 
 Sample Project that use OAuth 2.1 to secure SpringBoot API backend and Next.js frontend.
 
-## Step 1
+## Step 1: Create resource server
 
-Create an ordinary springboot project serving restful api.
+Create an ordinary springboot project serving restful api. It'll serve the role of resource server and client of OAuth.
 
 ### Add dependecies
 
@@ -199,7 +199,7 @@ public class ControllerAdvicer
 
 Set doc path in `application.properties`:
 
-```yml
+```text
 springdoc.swagger-ui.path=/apidoc/swagger-ui.html
 ```
 
@@ -227,8 +227,49 @@ public class ApiDocConfiguration
 }
 ```
 
-### Test
+### Test Resource Server API
 
 Browse `http://localhost:8080/apidoc/swagger-ui.html` and try the api
 
 ![test-api-doc](./doc/img/test-api-doc.jpeg)
+
+## Step 2: Create Auth Server
+
+Create an ordinary springboot project serving a static page. It'll serve the role of authorization server of OAuth and support Authentication via OpenId.
+
+### Add static page
+
+Add a simple static page to auth-server, I'll serve several shortcuts uri for further tests.
+
+Add page `index.html` to `src\main\resources\static` with following content.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Server</title>
+</head>
+<body>
+    <h1>Auth Server</h1>
+    <p>
+        Auth server is running.
+    </p>
+</body>
+</html>
+```
+
+### Change port
+
+Add configuration on `application.properties` file to set a different port so the auth-server can run alone with resource-server.
+
+```text
+server.port=8081
+```
+
+### Test Auth Server Index
+
+Browse `http://localhost:8081` and see the welcome page.
+
+![auth-server-index](./doc/img/auth-server-index-001.jpeg)
