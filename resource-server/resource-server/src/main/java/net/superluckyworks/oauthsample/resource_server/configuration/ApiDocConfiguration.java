@@ -1,4 +1,4 @@
-package net.sperluckyworks.oauthsample.resource_server.configuration;
+package net.superluckyworks.oauthsample.resource_server.configuration;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,4 +1,4 @@
-package net.sperluckyworks.oauthsample.resource_server.model;
+package net.superluckyworks.oauthsample.resource_server.model;
 
 public class ApiException extends RuntimeException {
     private String name;

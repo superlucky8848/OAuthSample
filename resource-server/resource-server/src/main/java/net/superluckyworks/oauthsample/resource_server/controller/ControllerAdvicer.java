@@ -1,12 +1,12 @@
-package net.sperluckyworks.oauthsample.resource_server.controller;
+package net.superluckyworks.oauthsample.resource_server.controller;
 
 import java.io.IOException;
 
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import net.sperluckyworks.oauthsample.resource_server.model.ApiException;
-import net.sperluckyworks.oauthsample.resource_server.model.ResultEntity;
+import net.superluckyworks.oauthsample.resource_server.model.ApiException;
+import net.superluckyworks.oauthsample.resource_server.model.ResultEntity;
 
 @RestControllerAdvice(basePackages = "net.sperluckyworks.oauthsample.resource_server.controller")
 public class ControllerAdvicer 

@@ -1,4 +1,4 @@
-package net.sperluckyworks.oauthsample.resource_server.util;
+package net.superluckyworks.oauthsample.resource_server.util;
 
 public class IOUtils 
 {

@@ -1,4 +1,4 @@
-package net.sperluckyworks.oauthsample.resource_server.model;
+package net.superluckyworks.oauthsample.resource_server.model;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
