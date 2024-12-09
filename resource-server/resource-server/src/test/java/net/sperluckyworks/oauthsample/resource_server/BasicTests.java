@@ -3,7 +3,7 @@ package net.sperluckyworks.oauthsample.resource_server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.sperluckyworks.oauthsample.resource_server.util.IOUtils;
+import net.superluckyworks.oauthsample.resource_server.util.IOUtils;
 
 public abstract class BasicTests 
 {
