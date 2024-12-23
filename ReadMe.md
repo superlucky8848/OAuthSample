@@ -264,8 +264,11 @@ Add page `index.html` to `src\main\resources\static` with following content.
 
 Add configuration on `application.properties` file to set a different port so the auth-server can run alone with resource-server.
 
+Also change logging lever of Spring Security to `TRACE` for debug
+
 ```text
 server.port=8081
+logging.level.org.springframework.security=TRACE
 ```
 
 ### Test Auth Server Index
@@ -273,3 +276,38 @@ server.port=8081
 Browse `http://localhost:8081` and see the welcome page.
 
 ![auth-server-index](./doc/img/auth-server-index-001.jpeg)
+
+### Enable Spring Security
+
+Add Spring Security to POM of auth-server project.
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+```
+
+Start auth-server, there will automatically set to username password authentication with a rundom password.
+The random password can be found in the log of server.
+
+![Securtiy-Random-Password](./doc/img/random-password.jpg)
+
+When accessing to [http://localhost:8081](http://localhost:8081) it will promt a login page, use username `user` with the genrated password can authenticate the user and get access to the index page.
+
+The default arrangement of Spring Boot and Spring Security affords the following behaviors at runtime:
+
+- Requires an authenticated user for any endpoint (including Boot’s /error endpoint)
+- Registers a default user with a generated password at startup (the password is logged to the console; in the preceding example, the password is `b61b2bb3-c401-4aa1-bd5d-3230a41b03bf`)
+- Protects password storage with BCrypt as well as others
+- Provides form-based login and logout flows
+- Authenticates form-based login as well as HTTP Basic
+- Provides content negotiation; for web requests, redirects to the login page; for service requests, returns a 401 Unauthorized
+- Mitigates CSRF attacks
+- Mitigates Session Fixation attacks
+- Writes Strict-Transport-Security to ensure HTTPS
+- Writes X-Content-Type-Options to mitigate sniffing attacks
+- Writes Cache Control headers that protect authenticated resources
+- Writes X-Frame-Options to mitigate Clickjacking
+- Integrates with HttpServletRequest's authentication methods
+- Publishes authentication success and failure events
