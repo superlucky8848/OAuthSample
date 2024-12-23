@@ -30,6 +30,15 @@ Create an ordinary springboot project serving restful api. It'll serve the role 
 </dependency>
 ```
 
+### Set Application properties
+
+Set port and application name in `application.properties`:
+
+```text
+spring.application.name=resource-server
+server.port=8082
+```
+
 ### Create Some model classes
 
 1. General Exception for the api
@@ -229,7 +238,7 @@ public class ApiDocConfiguration
 
 ### Test Resource Server API
 
-Browse `http://localhost:8080/apidoc/swagger-ui.html` and try the api
+Browse `http://localhost:8082/apidoc/swagger-ui.html` and try the api
 
 ![test-api-doc](./doc/img/test-api-doc.jpeg)
 
@@ -267,6 +276,7 @@ Add configuration on `application.properties` file to set a different port so th
 Also change logging lever of Spring Security to `TRACE` for debug
 
 ```text
+spring.application.name=auth-server
 server.port=8081
 logging.level.org.springframework.security=TRACE
 ```
