@@ -321,3 +321,51 @@ The default arrangement of Spring Boot and Spring Security affords the following
 - Writes X-Frame-Options to mitigate Clickjacking
 - Integrates with HttpServletRequest's authentication methods
 - Publishes authentication success and failure events
+
+### Step 3: Add basic users info for test
+
+Create `/configuration/SecurityConfiguration.java` add a `@Configuration` and `@EnableWebSecurity` class to customize security settings.
+
+For now, just add a simple UserDetailsService and give two basic users `admin` and `test`.
+
+Addtionally use `DelegatingPasswordEncoder` which SpringSecurity provides as the default PasswordEncorder.
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfiguration 
+{
+    @Bean
+    PasswordEncoder passwordEncoder() 
+    {
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
+
+    @Bean
+    UserDetailsService testUserDetailsService() 
+    {
+        PasswordEncoder testPasswordEncoder = passwordEncoder();
+
+        UserDetails testUser = User.withUsername("test")
+            .password(testPasswordEncoder.encode("test"))
+            .roles("USER")
+            .build();
+
+        UserDetails testAdmin = User.withUsername("admin")
+            .password(testPasswordEncoder.encode("admin"))
+            .roles("USER", "ADMIN")
+            .build();
+
+        UserDetailsService result = new InMemoryUserDetailsManager(Arrays.asList(testUser, testAdmin));
+
+        return result;
+    }
+}
+```
+
+`DelegatingPasswordEncoder` encode/decode password string with mutiple algrithms, with a hint prefix.
+
+e.g:
+
+- `{bcrypt}XXXXXXXX` indicates the `XXXXXXXX` is the original password encoded by BCrypt.
+- `{noop}XXXXXXXX` indicates that the `XXXXXXXX` is the original password.
