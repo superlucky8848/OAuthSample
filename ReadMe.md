@@ -322,7 +322,9 @@ The default arrangement of Spring Boot and Spring Security affords the following
 - Integrates with HttpServletRequest's authentication methods
 - Publishes authentication success and failure events
 
-### Step 3: Add basic users info for test
+## Step 3: SecurityConfiguration
+
+### Add basic users info for test
 
 Create `/configuration/SecurityConfiguration.java` add a `@Configuration` and `@EnableWebSecurity` class to customize security settings.
 
@@ -369,3 +371,46 @@ e.g:
 
 - `{bcrypt}XXXXXXXX` indicates the `XXXXXXXX` is the original password encoded by BCrypt.
 - `{noop}XXXXXXXX` indicates that the `XXXXXXXX` is the original password.
+
+### Addtionally Configuraion
+
+For site to properly function, add basic security config.
+
+The key is to permit all access home page, but need to authenticated to view other page.
+
+Form login is enabled.
+User can logout and clean cache.
+CSRF is disabled for the <form> in static page to function properly.
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfiguration 
+{
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
+    {
+        http
+            .cors(Customizer.withDefaults())
+            .csrf(csrf -> csrf.disable())
+            .authorizeHttpRequests(authorize ->authorize
+                .requestMatchers("/", "/index.html").permitAll()
+                .anyRequest().authenticated()
+            )
+            .formLogin(formLogin -> formLogin
+                .defaultSuccessUrl("/", true)
+                .permitAll()
+            )
+            .logout(logout -> logout
+                .logoutUrl("/logout")
+                .logoutSuccessUrl("/")
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID")
+            );
+
+        return http.build();
+    }
+    
+    // ... othre configurations
+}
+```
