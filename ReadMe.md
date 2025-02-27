@@ -338,23 +338,15 @@ Addtionally use `DelegatingPasswordEncoder` which SpringSecurity provides as the
 public class SecurityConfiguration 
 {
     @Bean
-    PasswordEncoder passwordEncoder() 
-    {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    }
-
-    @Bean
     UserDetailsService testUserDetailsService() 
     {
-        PasswordEncoder testPasswordEncoder = passwordEncoder();
-
         UserDetails testUser = User.withUsername("test")
-            .password(testPasswordEncoder.encode("test"))
+            .password("{noop}test")
             .roles("USER")
             .build();
 
         UserDetails testAdmin = User.withUsername("admin")
-            .password(testPasswordEncoder.encode("admin"))
+            .password("{noop}admin")
             .roles("USER", "ADMIN")
             .build();
 
@@ -380,7 +372,7 @@ The key is to permit all access home page, but need to authenticated to view oth
 
 Form login is enabled.
 User can logout and clean cache.
-CSRF is disabled for the <form> in static page to function properly.
+CSRF is disabled for the `<form>` in static page to function properly.
 
 ```java
 @Configuration
@@ -403,7 +395,7 @@ public class SecurityConfiguration
             )
             .logout(logout -> logout
                 .logoutUrl("/logout")
-                .logoutSuccessUrl("/")
+                .logoutSuccessUrl("/?logout=true")
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID")
             );
@@ -414,3 +406,41 @@ public class SecurityConfiguration
     // ... othre configurations
 }
 ```
+
+### User Custome UserDetails Service
+
+Remove `testUserDetailsService` bean in `SecurityConfiguration`, we will use a UserDetailsService class to serve as user database.
+
+Create `service/AuthUserDetailsService.java` and add following code.
+
+```java
+@Service
+public class AuthUserDetailsService implements UserDetailsService
+{
+    private InMemoryUserDetailsManager userDetailsManager;
+
+    public AuthUserDetailsService()
+    {
+         UserDetails testUser = User.withUsername("test")
+            .password("{noop}test")
+            .roles("USER")
+            .build();
+
+        UserDetails testAdmin = User.withUsername("admin")
+            .password("{noop}admin")
+            .roles("USER", "ADMIN")
+            .build();
+
+        userDetailsManager = new InMemoryUserDetailsManager(testUser, testAdmin);
+    }
+
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException 
+    {
+        return userDetailsManager.loadUserByUsername(username);
+    }
+}
+```
+
+Currently the `AuthUserDetailsService` just a functional copy of `testUserDetailsService` just deleted. It will me modified in the future for production use.
