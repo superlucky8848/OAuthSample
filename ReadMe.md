@@ -482,7 +482,7 @@ public class SecurityConfiguration
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/actuator/**").permitAll()    //Permit acutuator api
-                .requestMatchers("/apidoc/**", "/v3/api-docs/**").permitAll() //Permit Spring Doc Swagger UI
+                .requestMatchers("/apidoc/**", "/v3/api-docs*/**").permitAll() //Permit Spring Doc Swagger UI
                 .requestMatchers("/api/private/**").authenticated() //Require authentication for private api
                 .requestMatchers("/api/public/**", "/api/**").permitAll() //Permit public api
                 .anyRequest().authenticated()   //Require authentication for all other requests
@@ -498,7 +498,7 @@ Things to node:
 
 1. CSRF is disabled because the api is designed stateless and use no cookie.
 2. `/actuator/**` apis do not need authentication
-3. Spring Doc end points: `/apidoc/**` and `/v3/api-docs/**` need to be accessable without authentication in order for swagger-ui generation.
+3. Spring Doc end points: `/apidoc/**` and `/v3/api-docs*/**` need to be accessable without authentication in order for swagger-ui generation.
 4. Explicitly protect `/api/private/**` with basic authentication
 5. Allow unauthorized acesss to `/api/public/**` and `/api/**`(other than `/api/private/**`)
 6. Disable unauthorized access to any other urls as a backup policy.

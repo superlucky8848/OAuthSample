@@ -19,7 +19,7 @@ public class SecurityConfiguration
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/actuator/**").permitAll()    //Permit acutuator api
-                .requestMatchers("/apidoc/**", "/v3/api-docs/**").permitAll() //Permit Spring Doc Swagger UI
+                .requestMatchers("/apidoc/**", "/v3/api-docs*/**").permitAll() //Permit Spring Doc Swagger UI
                 .requestMatchers("/api/private/**").authenticated() //Require authentication for private api
                 .requestMatchers("/api/public/**", "/api/**").permitAll() //Permit public api
                 .anyRequest().authenticated()   //Require authentication for all other requests
