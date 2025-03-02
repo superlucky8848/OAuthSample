@@ -322,7 +322,7 @@ The default arrangement of Spring Boot and Spring Security affords the following
 - Integrates with HttpServletRequest's authentication methods
 - Publishes authentication success and failure events
 
-## Step 3: SecurityConfiguration
+## Step 3: Auth Server SecurityConfiguration
 
 ### Add basic users info for test
 
@@ -444,3 +444,223 @@ public class AuthUserDetailsService implements UserDetailsService
 ```
 
 Currently the `AuthUserDetailsService` just a functional copy of `testUserDetailsService` just deleted. It will me modified in the future for production use.
+
+## Step 4: Resource Sever Security Configuration
+
+### Add dependency
+
+In `pom.xml` add dependency for spring security.
+
+```xml
+<project>
+    <!-- otther configuration ommited -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+    </dependencies>
+</projec>
+```
+
+### Create Spring Security Config
+
+Create `configuration/SecurityConfiguration.java` to add security config. Add `@Configuration` and `@EnableWebSecurity` annotations to the configuration class.
+
+Currently resource server is config to use Basic Auth Type for protected api, for tests only. It will be configured to use oauth token in product enviornment.
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfiguration 
+{
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception
+    {
+        http
+            .cors(Customizer.withDefaults())
+            .csrf(csrf -> csrf.disable())
+            .authorizeHttpRequests(authorize -> authorize
+                .requestMatchers("/actuator/**").permitAll()    //Permit acutuator api
+                .requestMatchers("/apidoc/**", "/v3/api-docs/**").permitAll() //Permit Spring Doc Swagger UI
+                .requestMatchers("/api/private/**").authenticated() //Require authentication for private api
+                .requestMatchers("/api/public/**", "/api/**").permitAll() //Permit public api
+                .anyRequest().authenticated()   //Require authentication for all other requests
+            )
+            .httpBasic(Customizer.withDefaults());
+
+        return http.build();
+    }   
+}
+```
+
+Things to node:
+
+1. CSRF is disabled because the api is designed stateless and use no cookie.
+2. `/actuator/**` apis do not need authentication
+3. Spring Doc end points: `/apidoc/**` and `/v3/api-docs/**` need to be accessable without authentication in order for swagger-ui generation.
+4. Explicitly protect `/api/private/**` with basic authentication
+5. Allow unauthorized acesss to `/api/public/**` and `/api/**`(other than `/api/private/**`)
+6. Disable unauthorized access to any other urls as a backup policy.
+
+### Add basic Users info for test
+
+Create `/service/Authuer.java` to populate test accounts.
+
+For now, just add a simple UserDetailsService and give two basic users `admin` and `test`.
+
+```java
+@Service
+public class AuthUserDetailsService implements UserDetailsService
+{
+    private InMemoryUserDetailsManager userDetailsManager;
+
+    public AuthUserDetailsService()
+    {
+       UserDetails testUser = User.withUsername("test")
+            .password("{noop}test")
+            .roles("USER")
+            .build();
+
+        UserDetails testAdmin = User.withUsername("admin")
+            .password("{noop}admin")
+            .roles("USER", "ADMIN")
+            .build();
+
+        userDetailsManager = new InMemoryUserDetailsManager(testUser, testAdmin);
+    
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException 
+    {
+        return userDetailsManager.loadUserByUsername(username);
+    }
+}
+```
+
+### Add public and private apis for test
+
+Delete `controller/MainController.java` and add `controller/PublicController.java` and `controller/PrivateController.java` add add some restful api for test.
+
+```java
+package net.superluckyworks.oauthsample.resource_server.controller;
+
+// imports ...
+
+@RestController
+@RequestMapping(path = "/api/public", produces = {MediaType.APPLICATION_JSON_VALUE})
+public class PublicController 
+{
+    @Operation(description = "Say Hello Public Call")
+    @GetMapping("/hello")    
+    public ResultEntity<String> hello(
+        @Parameter(description = "Say hello to whom?")
+        @RequestParam(defaultValue = "World")
+        String name)
+    {
+        String result = String.format("(Public) Hello %s!", name);
+        return ResultEntity.success(result);
+    }
+}
+```
+
+```java
+package net.superluckyworks.oauthsample.resource_server.controller;
+
+// imports...
+
+@RestController
+@RequestMapping(path = "/api/private", produces = { MediaType.APPLICATION_JSON_VALUE })
+@SecurityRequirement(name = "basicScheme")
+public class PrivateController 
+{
+    @Operation(description = "Say Hello Privatge Call")
+    @GetMapping("/hello")    
+    public ResultEntity<String> hello(
+        @Parameter(description = "Say hello to whom?")
+        @RequestParam(defaultValue = "World")
+        String name)
+    {
+        String result = String.format("(Private) Hello %s!", name);
+        return ResultEntity.success(result);
+    }
+}
+```
+
+Note that `@SecurityRequirement` is added to private api configuration for spring-doc to add basicScheme to swagger-page.
+
+### Change Spring Doc Configuration
+
+Change `configeration/ApiDocConfiguration.java`, Add `@SeurityScheme` to add basic authentication support to doc page, and group public and private apis to seperated pages.
+
+The Configuration class will be like following:
+
+```java
+@Configuration
+@SecurityScheme(
+    name = "basicScheme",
+    type = SecuritySchemeType.HTTP,
+    scheme = "basic"
+)
+public class ApiDocConfiguration 
+{
+    @Bean
+    public OpenAPI apiDefination()
+    {
+        return new OpenAPI()
+            .info(
+                new Info().title("OAuth Test API")
+                .description("Test APIs for OAuth test project")
+                .version("v1.0.1")
+                .license(
+                    new License()
+                    .name("Apache 2.0")
+                    .url("https://www.apache.org/licenses/LICENSE-2.0.html")
+                )
+            );
+    }
+
+    @Bean
+    public GroupedOpenApi publicApi()
+    {
+        return GroupedOpenApi.builder()
+            .group("public")
+            .pathsToMatch("/api/public/**")
+            .build();
+    }
+
+    @Bean
+    public GroupedOpenApi privateApi()
+    {
+        return GroupedOpenApi.builder()
+            .group("private")
+            .pathsToMatch("/api/private/**")
+            .build();
+    }
+}
+```
+
+### Test resource server
+
+Run resource server and navigate to `http://localhost:8082/apidoc/swagger-ui/index.html`
+
+You can see how private and public apis are seperated, and a authorize button is opened. Add currect credentials to the doc page will automatically add Auth Headers to following calls. Otherwise the spring security will come in and notify the browser to ask for credentials.
+
+If authenticated with browser, Basic Auth is cached by browser, restart browser to clean cache.
+
+Private API doc page:
+
+![private-api-doc](./doc/img/test-api-doc-private.jpeg)
+
+Public API doc page:
+
+![public-api-doc](./doc/img/test-api-doc-public.jpeg)
+
+Basic Auth page by swgger:
+
+![swagger-basic-auth](./doc/img/spring-doc-auth-basic.jpeg)
+
+Basic Auth dialog by browser:
+
+![browser-basic-auth](./doc/img/browser-auth-basic.jpeg)

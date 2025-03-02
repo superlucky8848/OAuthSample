@@ -1,4 +1,4 @@
-package net.sperluckyworks.oauthsample.resource_server;
+package net.superluckyworks.oauthsample.resource_server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

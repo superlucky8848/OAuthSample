@@ -1,4 +1,4 @@
-package net.superluckyworks.oauthsample.auth_server.service;
+package net.superluckyworks.oauthsample.resource_server.service;
 
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -14,7 +14,7 @@ public class AuthUserDetailsService implements UserDetailsService
 
     public AuthUserDetailsService()
     {
-        UserDetails testUser = User.withUsername("test")
+       UserDetails testUser = User.withUsername("test")
             .password("{noop}test")
             .roles("USER")
             .build();
@@ -25,8 +25,8 @@ public class AuthUserDetailsService implements UserDetailsService
             .build();
 
         userDetailsManager = new InMemoryUserDetailsManager(testUser, testAdmin);
+    
     }
-
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException 

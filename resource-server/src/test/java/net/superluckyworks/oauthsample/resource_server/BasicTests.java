@@ -1,4 +1,4 @@
-package net.sperluckyworks.oauthsample.resource_server;
+package net.superluckyworks.oauthsample.resource_server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
