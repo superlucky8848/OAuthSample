@@ -445,9 +445,78 @@ public class AuthUserDetailsService implements UserDetailsService
 
 Currently the `AuthUserDetailsService` just a functional copy of `testUserDetailsService` just deleted. It will me modified in the future for production use.
 
+### Configure OAuth login for test
+
+### Add OAuth clinet denpency for auth server
+
+In `pom.xml` add dependency for oauth2.1 client.
+
+```xml
+<project>
+    <!-- otther configuration ommited -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+    </dependencies>
+</projec>
+```
+
+### Add OAuth client registry of GitHub for test
+
+Login to github and in `profile>settings>developer settins>Oauth apps` page, set up an oauth page, note `client id` and `client secret`, set redirect url to `http://localhost:8081/`;
+
+Then configure `resources/application.properties` add following properties
+
+```text
+spring.security.oauth2.client.registration.github.client-id={github client id}
+spring.security.oauth2.client.registration.github.client-secret={git hub client secret}
+spring.security.oauth2.client.registration.github.scope=user:email
+spring.security.oauth2.client.registration.github.client-name=GitHub
+```
+
+### Add oauth login in securtiy settings of auth server
+
+Add `oauth2Login` config in securtiyFilterChain bean in SecurityConfiguration class.
+
+```java
+@Bean
+SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
+{
+    http
+        .cors(Customizer.withDefaults())
+        .csrf(csrf -> csrf.disable())
+        .authorizeHttpRequests(authorize ->authorize
+            .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()
+            .requestMatchers("/", "/index.html").permitAll()
+            .anyRequest().authenticated()
+        )
+        .oauth2Login(Customizer.withDefaults())
+        .formLogin(formLogin -> formLogin
+            .defaultSuccessUrl("/", true)
+            .permitAll()
+        )
+        .logout(logout -> logout
+            .logoutUrl("/logout")
+            .logoutSuccessUrl("/")
+            .invalidateHttpSession(true)
+            .deleteCookies("JSESSIONID")
+        );
+
+    return http.build();
+} 
+```
+
+Then visit some protected page like `http://localhost:8081/tests/method-overriding.html?continue`, The poped up login page will have github login link on it.
+
+![github-login-page](./doc/img/oauth-login.jpeg)
+
+The protected page shoule be accessable after github authentication.
+
 ## Step 4: Resource Sever Security Configuration
 
-### Add dependency
+### Add spring security dependency for resource server
 
 In `pom.xml` add dependency for spring security.
 

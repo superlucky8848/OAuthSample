@@ -24,6 +24,7 @@ public class SecurityConfiguration
                 .requestMatchers("/", "/index.html").permitAll()
                 .anyRequest().authenticated()
             )
+            .oauth2Login(Customizer.withDefaults())
             .formLogin(formLogin -> formLogin
                 .defaultSuccessUrl("/", true)
                 .permitAll()
