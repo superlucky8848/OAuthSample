@@ -514,6 +514,105 @@ Then visit some protected page like `http://localhost:8081/tests/method-overridi
 
 The protected page shoule be accessable after github authentication.
 
+### Test Map Authorities from OAuth user to local user.
+
+To map local user's GrantedAuthorties from OAuth user scopes, Add a @Bean of GrantedAuthoritiesMapper in security settings.
+
+```java
+@Bean
+GrantedAuthoritiesMapper OAuth2UserAuthoritiesMapper() 
+{
+    return (authorities) -> {
+        Set<GrantedAuthority> mappedAuthorities = new HashSet<>();
+
+        authorities.forEach(authority -> {
+            if (authority instanceof OidcUserAuthority)
+            {
+                OidcUserAuthority oidcUserAuthority = (OidcUserAuthority) authority;
+                String email = oidcUserAuthority.getUserInfo().getEmail();
+                Set<GrantedAuthority> userAuthorities = load3rdPartyUserAuthorities(email);
+                mappedAuthorities.addAll(userAuthorities);
+            }
+            else if(authority instanceof OAuth2UserAuthority)
+            {
+                OAuth2UserAuthority oauth2UserAuthority = (OAuth2UserAuthority) authority;
+                String email = (String) oauth2UserAuthority.getAttributes().get("email");
+                Set<GrantedAuthority> userAuthorities = load3rdPartyUserAuthorities(email);
+                mappedAuthorities.addAll(userAuthorities);
+            }
+            else
+            {
+                mappedAuthorities.add(authority);
+            }
+        });
+
+        System.out.println("Mapped Authorities: " + mappedAuthorities.toString());
+
+        return mappedAuthorities;
+    };
+    
+}
+
+private Set<GrantedAuthority> load3rdPartyUserAuthorities(String email)
+{
+    Set<GrantedAuthority> result = new HashSet<>();
+    if(email.compareTo("mail.superlucky@gmail.com") == 0)
+    {
+        result.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        result.add(new SimpleGrantedAuthority("ROLE_USER"));
+    }
+    else
+    {
+        result.add(new SimpleGrantedAuthority("ROLE_USER"));
+    }
+
+    return result;
+}
+```
+
+The `OAuth2UserAuthoritiesMapper` returns a function that map the authorities of the current login user. It will run the first time user logged in. By filter the class of authority, one can just process users logged by OAuth or OIDC.
+
+The `load3rdPartyUserAuthorities` is a dummy function to do the authority lookup. It should be a repository function to lookup user authorities in the database.
+
+Next, add some endpoints in `BaseController` to show current user's basic info and mapped authorities.
+
+```Java
+//BaseController.java
+@GetMapping(path = "/user-info", produces = MediaType.APPLICATION_JSON_VALUE)
+public OAuth2User userInfo(@AuthenticationPrincipal OAuth2User oauth2User) throws JsonProcessingException 
+{
+   return oauth2User;
+}
+
+@GetMapping(path = "/user-authorities", produces = MediaType.APPLICATION_JSON_VALUE)
+public List<GrantedAuthority> userAuthorities(Authentication authentication) 
+{
+    return new ArrayList<GrantedAuthority>(authentication.getAuthorities());
+}
+```
+
+Add links on index.html for convenience.
+
+```html
+<h2>Test Links:</h2>
+<ul>
+    <!-- Other test links -->
+    <li>
+        <a href="/user-info" target="_blank">Show User Info</a>
+    </li>
+    <li>
+        <a href="/user-authorities" target="_blank">Show User Authorities</a>
+    </li>
+</ul>
+```
+
+The result pages should be like:
+
+1. User Info:
+![user-info](./doc/img/page-user-info.jpeg)
+2. User Authorities:
+![user-authorities](./doc/img/page-user-authorities.jpeg)
+
 ## Step 4: Resource Sever Security Configuration
 
 ### Add spring security dependency for resource server
