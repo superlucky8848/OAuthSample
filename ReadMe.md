@@ -514,7 +514,7 @@ Then visit some protected page like `http://localhost:8081/tests/method-overridi
 
 The protected page shoule be accessable after github authentication.
 
-### Test Map Authorities from OAuth user to local user.
+### Test Map Authorities from OAuth user to local user
 
 To map local user's GrantedAuthorties from OAuth user scopes, Add a @Bean of GrantedAuthoritiesMapper in security settings.
 
