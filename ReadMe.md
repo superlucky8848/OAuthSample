@@ -579,9 +579,21 @@ Next, add some endpoints in `BaseController` to show current user's basic info a
 ```Java
 //BaseController.java
 @GetMapping(path = "/user-info", produces = MediaType.APPLICATION_JSON_VALUE)
-public OAuth2User userInfo(@AuthenticationPrincipal OAuth2User oauth2User) throws JsonProcessingException 
+public Object userInfo(Authentication authentication)
 {
-   return oauth2User;
+    Object principal = authentication.getPrincipal();
+
+    if(principal instanceof OAuth2User)
+    {
+        OAuth2User oauth2User = (OAuth2User) principal;
+        String email = (String) oauth2User.getAttribute("email");
+
+        System.out.println("email: " + email);
+        System.out.println("authorities: ");
+        oauth2User.getAuthorities().forEach(System.out::println);
+    }
+
+    return principal;
 }
 
 @GetMapping(path = "/user-authorities", produces = MediaType.APPLICATION_JSON_VALUE)
