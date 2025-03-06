@@ -1,26 +1,24 @@
 package net.superluckyworks.oauthsample.auth_server.configuration;
 
-import java.util.HashSet;
-import java.util.Set;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
-import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
-import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.SecurityFilterChain;
 
 import jakarta.servlet.DispatcherType;
+import net.superluckyworks.oauthsample.auth_server.service.MapOAuthUserService;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfiguration 
 {
+    @Autowired 
+    MapOAuthUserService mapOAuthUserService;
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
     {
@@ -29,10 +27,26 @@ public class SecurityConfiguration
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize ->authorize
                 .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()
-                .requestMatchers("/", "/index.html").permitAll()
+                .requestMatchers("/", "/index.html", "/register.html").permitAll()
                 .anyRequest().authenticated()
             )
-            .oauth2Login(Customizer.withDefaults())
+            .oauth2Login(oauth2Login -> oauth2Login
+                .userInfoEndpoint(userInfo -> userInfo
+                    .userService(mapOAuthUserService)
+                )
+                .failureHandler((req, res, e) -> {
+                    if(e instanceof OAuth2AuthenticationException)
+                    {
+                        OAuth2AuthenticationException oauth2Exception = (OAuth2AuthenticationException) e;
+                        if(oauth2Exception.getError().getErrorCode().compareTo("NO_LOCAL_USER") == 0)
+                        {
+                            res.sendRedirect("/register.html?email=" + oauth2Exception.getError().getDescription());
+                        }
+                        else res.sendRedirect("/login?error");
+                    }
+                    else res.sendRedirect("/login?error");
+                })
+            )
             .formLogin(formLogin -> formLogin
                 .defaultSuccessUrl("/", true)
                 .permitAll()
@@ -45,54 +59,5 @@ public class SecurityConfiguration
             );
 
         return http.build();
-    } 
-
-    @Bean
-    GrantedAuthoritiesMapper OAuth2UserAuthoritiesMapper() 
-    {
-        return (authorities) -> {
-            Set<GrantedAuthority> mappedAuthorities = new HashSet<>();
-
-            authorities.forEach(authority -> {
-                if (authority instanceof OidcUserAuthority)
-                {
-                    OidcUserAuthority oidcUserAuthority = (OidcUserAuthority) authority;
-                    String email = oidcUserAuthority.getUserInfo().getEmail();
-                    Set<GrantedAuthority> userAuthorities = load3rdPartyUserAuthorities(email);
-                    mappedAuthorities.addAll(userAuthorities);
-                }
-                else if(authority instanceof OAuth2UserAuthority)
-                {
-                    OAuth2UserAuthority oauth2UserAuthority = (OAuth2UserAuthority) authority;
-                    String email = (String) oauth2UserAuthority.getAttributes().get("email");
-                    Set<GrantedAuthority> userAuthorities = load3rdPartyUserAuthorities(email);
-                    mappedAuthorities.addAll(userAuthorities);
-                }
-                else
-                {
-                    mappedAuthorities.add(authority);
-                }
-            });
-
-            System.out.println("Mapped Authorities: " + mappedAuthorities.toString());
-
-            return mappedAuthorities;
-        };
-    }
-
-    private Set<GrantedAuthority> load3rdPartyUserAuthorities(String email)
-    {
-        Set<GrantedAuthority> result = new HashSet<>();
-        if(email.compareTo("mail.superlucky@gmail.com") == 0)
-        {
-            result.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
-            result.add(new SimpleGrantedAuthority("ROLE_USER"));
-        }
-        else
-        {
-            result.add(new SimpleGrantedAuthority("ROLE_USER"));
-        }
-
-        return result;
     }
 }

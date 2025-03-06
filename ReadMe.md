@@ -625,6 +625,308 @@ The result pages should be like:
 2. User Authorities:
 ![user-authorities](./doc/img/page-user-authorities.jpeg)
 
+### Test Hybrid UserDetails of AuthServer
+
+Sometimes the authority mapping is not enought, in case that auth server need to produce both authorities and user infos, we need to combine user details form local login and OAuth login.
+
+This sector shows how to archieve that.
+
+First, Add a new class for our hybrid user in `/model/HybridUser.java`, it combines common `UserDetails` and `OAuth2User` interfaces.
+
+```java
+public class HybridUser extends User implements OAuth2User
+{
+    private Map<String, Object> attributes = new HashMap<>();
+
+    public HybridUser(UserDetails user)
+    {
+        super(
+            user.getUsername(), 
+            user.getPassword(), 
+            user.isEnabled(), 
+            user.isAccountNonExpired(), 
+            user.isCredentialsNonExpired(), 
+            user.isAccountNonLocked(), 
+            user.getAuthorities());
+    }
+
+    public HybridUser(UserDetails user, Map<String, Object> attributes)
+    {
+        this(user);
+        this.attributes = attributes;
+    }
+
+    @Override
+    public Map<String, Object> getAttributes() 
+    {
+        return attributes;
+    }
+
+    @Override
+    public String getName() {
+        return getUsername();
+    }
+    
+}
+```
+
+`HybridUser` is Just a normal UserDetails adding `OAuth2User`'s attribures.
+
+Next, we change BaseController to make `/user-info` entrypoint to show users for all the type in SecurityContext
+
+```java
+// BaseController.java
+//... Other entries
+@GetMapping(path = "/user-info", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Object userInfo(Authentication authentication)
+    {
+        Object principal = authentication.getPrincipal();
+
+        return principal;
+    }
+```
+
+Next, we modify `AuthUserDetailsService` and add local user info of github users, make the email as the identifier.
+
+```java
+@Service
+public class AuthUserDetailsService implements UserDetailsService
+{
+    private InMemoryUserDetailsManager userDetailsManager;
+
+    public AuthUserDetailsService()
+    {
+        // Load some test users;
+        List<UserDetails> users = Arrays.asList(
+            User.withUsername("test")
+                .password("{noop}test")
+                .roles("USER")
+                .build()
+            ,User.withUsername("admin")
+                .password("{noop}admin")
+                .roles("USER", "ADMIN")
+                .build()
+            ,User.withUsername("mail.superlucky@gmail.com")
+                .password("{noop}superlucky")
+                .roles("USER", "ADMIN")
+                .build()
+        );
+
+        userDetailsManager = new InMemoryUserDetailsManager(users);
+    }
+
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException 
+    {
+        return userDetailsManager.loadUserByUsername(username);
+    }
+}
+```
+
+Next we add `service/MapOAuthUserService.java` a class which extends `DefaultOAuth2UserService` to map OAuth users to Hybrid Users
+
+```java
+@Service
+public class MapOAuthUserService extends DefaultOAuth2UserService
+{
+    @Autowired
+    private AuthUserDetailsService authUserDetailsService;
+
+    @Override
+    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException 
+    {
+        OAuth2User oAuth2User = super.loadUser(userRequest);
+        String email = oAuth2User.getAttribute("email");
+
+        try
+        {
+            UserDetails localUser = authUserDetailsService.loadUserByUsername(email);
+            return new HybridUser(localUser, oAuth2User.getAttributes());
+        }
+        catch (UsernameNotFoundException e)
+        {
+            OAuth2Error oauth2Error = new OAuth2Error("NO_LOCAL_USER", email, null);
+            throw new OAuth2AuthenticationException(oauth2Error, e); 
+        }
+    }
+}
+```
+
+Note that a special `OAuth2Error` is set in the senario that the github user do not have the local user correspondence, it will be used to redirect user to register page later.
+
+Finally modify the `/configuration/SecurityConfiguration.java` class, remove `OAuth2UserAuthoritiesMapper` and `load3rdPartyUserAuthorities` fuctions from previouse sector. Configure autowired `MapOAuthUserService` to OAuth2Login filter and set redirect to register page for OAuth users not locally registered.
+
+The full configuration class would be like:
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfiguration 
+{
+    @Autowired 
+    MapOAuthUserService mapOAuthUserService;
+    
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
+    {
+        http
+            .cors(Customizer.withDefaults())
+            .csrf(csrf -> csrf.disable())
+            .authorizeHttpRequests(authorize ->authorize
+                .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()
+                .requestMatchers("/", "/index.html", "/register.html").permitAll()
+                .anyRequest().authenticated()
+            )
+            .oauth2Login(oauth2Login -> oauth2Login
+                .userInfoEndpoint(userInfo -> userInfo
+                    .userService(mapOAuthUserService)
+                )
+                .failureHandler((req, res, e) -> {
+                    if(e instanceof OAuth2AuthenticationException)
+                    {
+                        OAuth2AuthenticationException oauth2Exception = (OAuth2AuthenticationException) e;
+                        if(oauth2Exception.getError().getErrorCode().compareTo("NO_LOCAL_USER") == 0)
+                        {
+                            res.sendRedirect("/register.html?email=" + oauth2Exception.getError().getDescription());
+                        }
+                        else res.sendRedirect("/login?error");
+                    }
+                    else res.sendRedirect("/login?error");
+                })
+            )
+            .formLogin(formLogin -> formLogin
+                .defaultSuccessUrl("/", true)
+                .permitAll()
+            )
+            .logout(logout -> logout
+                .logoutUrl("/logout")
+                .logoutSuccessUrl("/")
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID")
+            );
+
+        return http.build();
+    } 
+}
+```
+
+Also notify `/register.html` is permited to all users in order to register.
+
+Now add a simple demo html page `/resources/static/register.html` for showing register ui. No register login is provided.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>Register New User</h1>
+
+    <form>
+        <ul>
+            <li>
+                <input type="text" name="email" placeholder="somebody@somesite.com" required />
+            </li>
+            <li>
+                <input type="password" name="password" placeholder="Password" required />
+            </li>
+            <li>
+                <input type="password" name="repeat" placeholder="repeat" required />
+            </li>
+            <li>
+                <button type="submit">Register</button>
+            </li>
+        </ul>
+    </form>
+    <script type="text/javascript">
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email');
+        if (email) {
+            document.querySelector('input[name="email"]').value = email;
+        }
+    </script>
+</body>
+</html>
+```
+
+Add register link on `index.html`
+
+```html
+<!-- other elements omitted -->
+<p>
+    <a href="/register.html">Register</a>
+    <span> | </span>
+    <a href="/logout">Logout</a>
+</p>
+```
+
+Note that email is loaded automatically from url query paramters.
+
+Test with normal user, github user `mail.superlucky@gmail.com` and other github user.
+
+```json
+// Normal User Info
+{
+  "password": null,
+  "username": "test",
+  "authorities": [
+    {
+      "authority": "ROLE_USER"
+    }
+  ],
+  "accountNonExpired": true,
+  "accountNonLocked": true,
+  "credentialsNonExpired": true,
+  "enabled": true
+}
+// Noraml User Authorities
+[
+  {
+    "authority": "ROLE_USER"
+  }
+]
+// Registerd GitHub User Info
+{
+  "password": null,
+  "username": "mail.superlucky@gmail.com",
+  "authorities": [
+    {
+      "authority": "ROLE_ADMIN"
+    },
+    {
+      "authority": "ROLE_USER"
+    }
+  ],
+  "accountNonExpired": true,
+  "accountNonLocked": true,
+  "credentialsNonExpired": true,
+  "enabled": true,
+  "attributes": {
+    "login": "superlucky8848",
+    "email": "mail.superlucky@gmail.com",
+    // Other attributes omitted.
+  },
+  "name": "mail.superlucky@gmail.com"
+}
+// Registerd GitHub User Authorities
+[
+  {
+    "authority": "ROLE_ADMIN"
+  },
+  {
+    "authority": "ROLE_USER"
+  }
+]
+```
+
+For other github users a direction to regisiter page is shown
+
+![register-page](./doc/img/page-register.jpeg)
+
 ## Step 4: Resource Sever Security Configuration
 
 ### Add spring security dependency for resource server

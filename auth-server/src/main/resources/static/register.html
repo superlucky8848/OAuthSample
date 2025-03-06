@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>Register New User</h1>
+
+    <form>
+        <ul>
+            <li>
+                <input type="text" name="email" placeholder="somebody@somesite.com" required />
+            </li>
+            <li>
+                <input type="password" name="password" placeholder="Password" required />
+            </li>
+            <li>
+                <input type="password" name="repeat" placeholder="repeat" required />
+            </li>
+            <li>
+                <button type="submit">Register</button>
+            </li>
+        </ul>
+    </form>
+    <script type="text/javascript">
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email');
+        if (email) {
+            document.querySelector('input[name="email"]').value = email;
+        }
+    </script>
+</body>
+</html>
