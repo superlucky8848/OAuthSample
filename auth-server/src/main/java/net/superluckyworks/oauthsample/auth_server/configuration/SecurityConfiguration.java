@@ -3,10 +3,12 @@ package net.superluckyworks.oauthsample.auth_server.configuration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 
 import jakarta.servlet.DispatcherType;
@@ -20,10 +22,24 @@ public class SecurityConfiguration
     MapOAuthUserService mapOAuthUserService;
 
     @Bean
+    @Order(1)
+    SecurityFilterChain authserverFilterChain(HttpSecurity http) throws Exception
+    {
+        OAuth2AuthorizationServerConfigurer oauth2AuthorizationServerConfigurer = OAuth2AuthorizationServerConfigurer.authorizationServer();
+
+        http.securityMatcher(oauth2AuthorizationServerConfigurer.getEndpointsMatcher())
+            .with(oauth2AuthorizationServerConfigurer, authserver -> authserver.oidc(Customizer.withDefaults()))
+            .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+            .formLogin(Customizer.withDefaults());
+        
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
     {
-        http
-            .cors(Customizer.withDefaults())
+        http.cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize ->authorize
                 .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()

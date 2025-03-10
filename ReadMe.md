@@ -1146,3 +1146,97 @@ Basic Auth page by swgger:
 Basic Auth dialog by browser:
 
 ![browser-basic-auth](./doc/img/browser-auth-basic.jpeg)
+
+## Step 5: Configure Auth Server
+
+### Add Spring Security Configure for oauth auth-sever
+
+```xml
+<project>
+    <!-- otther configuration ommited -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-authorization-server</artifactId>
+        </dependency>
+    </dependencies>
+</projec>
+```
+
+### Add Auth Server properties
+
+```text
+spring.security.oauth2.authorizationserver.issuer=https://localhost:8081
+spring.security.oauth2.authorizationserver.client.udata-client.registration.client-id=udata-client
+spring.security.oauth2.authorizationserver.client.udata-client.registration.client-name=Udata
+spring.security.oauth2.authorizationserver.client.udata-client.registration.client-secret=123456
+spring.security.oauth2.authorizationserver.client.udata-client.registration.client-authentication-methods=client_secret_basic
+spring.security.oauth2.authorizationserver.client.udata-client.registration.scopes=openid,profile,email
+spring.security.oauth2.authorizationserver.client.udata-client.registration.authorization-grant-types=authorization_code,refresh_token
+spring.security.oauth2.authorizationserver.client.udata-client.registration.redirect-uris=http://localhost:8082/login/oauth2/code/udata-client
+spring.security.oauth2.authorizationserver.client.udata-client.registration.post-logout-redirect-uris=http://localhost:8082/logout
+spring.security.oauth2.authorizationserver.client.udata-client.require-authorization-consent=false
+```
+
+### Add Security Configuration
+
+```java
+@Autowired 
+MapOAuthUserService mapOAuthUserService;
+
+@Bean
+@Order(1)
+SecurityFilterChain authserverFilterChain(HttpSecurity http) throws Exception
+{
+    OAuth2AuthorizationServerConfigurer oauth2AuthorizationServerConfigurer = OAuth2AuthorizationServerConfigurer.authorizationServer();
+
+    http.securityMatcher(oauth2AuthorizationServerConfigurer.getEndpointsMatcher())
+        .with(oauth2AuthorizationServerConfigurer, authserver -> authserver.oidc(Customizer.withDefaults()))
+        .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+        .formLogin(Customizer.withDefaults());
+    
+    return http.build();
+}
+
+@Bean
+@Order(2)
+SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
+{
+    http.cors(Customizer.withDefaults())
+        .csrf(csrf -> csrf.disable())
+        .authorizeHttpRequests(authorize ->authorize
+            .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()
+            .requestMatchers("/", "/index.html", "/register.html").permitAll()
+            .anyRequest().authenticated()
+        )
+        .oauth2Login(oauth2Login -> oauth2Login
+            .userInfoEndpoint(userInfo -> userInfo
+                .userService(mapOAuthUserService)
+            )
+            .failureHandler((req, res, e) -> {
+                if(e instanceof OAuth2AuthenticationException)
+                {
+                    OAuth2AuthenticationException oauth2Exception = (OAuth2AuthenticationException) e;
+                    if(oauth2Exception.getError().getErrorCode().compareTo("NO_LOCAL_USER") == 0)
+                    {
+                        res.sendRedirect("/register.html?email=" + oauth2Exception.getError().getDescription());
+                    }
+                    else res.sendRedirect("/login?error");
+                }
+                else res.sendRedirect("/login?error");
+            })
+        )
+        .formLogin(formLogin -> formLogin
+            .defaultSuccessUrl("/", true)
+            .permitAll()
+        )
+        .logout(logout -> logout
+            .logoutUrl("/logout")
+            .logoutSuccessUrl("/")
+            .invalidateHttpSession(true)
+            .deleteCookies("JSESSIONID")
+        );
+
+    return http.build();
+}
+```
