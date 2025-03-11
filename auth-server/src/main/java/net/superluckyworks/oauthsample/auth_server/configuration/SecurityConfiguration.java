@@ -4,12 +4,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 import jakarta.servlet.DispatcherType;
 import net.superluckyworks.oauthsample.auth_server.service.MapOAuthUserService;
@@ -30,7 +33,12 @@ public class SecurityConfiguration
         http.securityMatcher(oauth2AuthorizationServerConfigurer.getEndpointsMatcher())
             .with(oauth2AuthorizationServerConfigurer, authserver -> authserver.oidc(Customizer.withDefaults()))
             .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
-            .formLogin(Customizer.withDefaults());
+            .cors(cors -> cors.disable())
+            .exceptionHandling(exceptions -> exceptions
+                .defaultAuthenticationEntryPointFor(
+                    new LoginUrlAuthenticationEntryPoint("/login"), 
+                    new MediaTypeRequestMatcher(MediaType.TEXT_HTML))
+            );
         
         return http.build();
     }
@@ -39,7 +47,7 @@ public class SecurityConfiguration
     @Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
     {
-        http.cors(Customizer.withDefaults())
+        http.cors(cors -> cors.disable())
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize ->authorize
                 .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()

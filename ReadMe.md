@@ -1165,18 +1165,25 @@ Basic Auth dialog by browser:
 
 ### Add Auth Server properties
 
-```text
-spring.security.oauth2.authorizationserver.issuer=https://localhost:8081
+```properties
+spring.security.oauth2.authorizationserver.issuer=http://localhost:8081
 spring.security.oauth2.authorizationserver.client.udata-client.registration.client-id=udata-client
 spring.security.oauth2.authorizationserver.client.udata-client.registration.client-name=Udata
-spring.security.oauth2.authorizationserver.client.udata-client.registration.client-secret=123456
-spring.security.oauth2.authorizationserver.client.udata-client.registration.client-authentication-methods=client_secret_basic
+spring.security.oauth2.authorizationserver.client.udata-client.registration.client-secret={noop}123456
+spring.security.oauth2.authorizationserver.client.udata-client.registration.client-authentication-methods=client_secret_post,client_secret_basic
 spring.security.oauth2.authorizationserver.client.udata-client.registration.scopes=openid,profile,email
 spring.security.oauth2.authorizationserver.client.udata-client.registration.authorization-grant-types=authorization_code,refresh_token
-spring.security.oauth2.authorizationserver.client.udata-client.registration.redirect-uris=http://localhost:8082/login/oauth2/code/udata-client
+spring.security.oauth2.authorizationserver.client.udata-client.registration.redirect-uris=http://localhost:8082/login/oauth2/code/udata-client,http://localhost:8082/apidoc/swagger-ui/oauth2-redirect.html
 spring.security.oauth2.authorizationserver.client.udata-client.registration.post-logout-redirect-uris=http://localhost:8082/logout
 spring.security.oauth2.authorizationserver.client.udata-client.require-authorization-consent=false
 ```
+
+`spring.security.oauth2.authorizationserver.issuer` configuration enables jwt support for authorization server. At default `http://localhost:8081/.well-known/openid-configuration` will give all endpoints configured. Notable endpoints encludes:
+
+1. issuer: The iss part of JWT.
+2. authorization_endpoint: Endpoint to get authentication code.
+3. token_endpoint: Endpoint to get authentication token.
+4. jwks_uri: Public key an other information to decode JWT.
 
 ### Add Security Configuration
 
@@ -1193,7 +1200,12 @@ SecurityFilterChain authserverFilterChain(HttpSecurity http) throws Exception
     http.securityMatcher(oauth2AuthorizationServerConfigurer.getEndpointsMatcher())
         .with(oauth2AuthorizationServerConfigurer, authserver -> authserver.oidc(Customizer.withDefaults()))
         .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
-        .formLogin(Customizer.withDefaults());
+        .cors(cors -> cors.disable())
+        .exceptionHandling(exceptions -> exceptions
+            .defaultAuthenticationEntryPointFor(
+                new LoginUrlAuthenticationEntryPoint("/login"), 
+                new MediaTypeRequestMatcher(MediaType.TEXT_HTML))
+        );
     
     return http.build();
 }
@@ -1202,7 +1214,7 @@ SecurityFilterChain authserverFilterChain(HttpSecurity http) throws Exception
 @Order(2)
 SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
 {
-    http.cors(Customizer.withDefaults())
+    http.cors(cors -> cors.disable())
         .csrf(csrf -> csrf.disable())
         .authorizeHttpRequests(authorize ->authorize
             .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()
@@ -1240,3 +1252,65 @@ SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception
     return http.build();
 }
 ```
+
+Currently the CORS protection is disabled to avoid affecting the tests.
+
+### Test OAuth token flow use Postman
+
+Start auth-server and resource-server.
+
+Download postman, disable auto follow redirection in File>Setting>General.
+
+1. Login and get SESSION ID
+
+    At browser, login and visit `http://localhost:8081/user-info/` and get cookie `JSESSIONID` from dev console.
+
+    ![get-cookie](./doc/img/get-session.jpeg)
+
+2. Get Access Code:
+
+    Add a request on postman
+    GET `http://localhost:8081/oauth2/authorize?response_type=code&client_id=udata-client&redirect_uri=http://localhost:8082/login/oauth2/code/udata-client&scope=email`
+
+    ![postman-code-001](./doc/img/postman-code-001.jpeg)
+
+    Add Cookie to `localhost` at postman's cookie store.
+
+    ![postman-code-002](./doc/img/postman-code-002.jpeg)
+    ![postman-code-003](./doc/img/postman-code-003.jpeg)
+
+    Sent the request and get an 302 response, look at the `Location` header, copy the code.
+
+    ![postman-code-004](./doc/img/postman-code-004.jpeg)
+
+3. Get Authorization Token
+
+    Add a request on postman
+    POST `localhost:8081/oauth2/token`
+    With `x-www-form-urlendoed` body:
+
+    - grant_type: `authorization_code`
+    - code: `{The code from code redirection url}`
+    - redirect_uri: `http://localhost:8082/login/oauth2/code/udata-client`
+    - scope: `email`
+
+    Note that the `redirect_uri` and `scope` must pre-registered when configure the auth server.
+
+    Run the Requst and get access_token from response body.
+
+    ![postman-token-002](./doc/img/postman-token-002.jpeg)
+
+4. Call API using authorization token
+
+    Add a request on postman
+    GET `http://localhost:8082/api/private/hello?name=World`
+
+    ![postman-api-001](./doc/img/postman-api-001.jpeg)
+
+    At Authorization page, add a `Bearea Token` Auth with the token from previours request.
+
+    ![postman-api-002](./doc/img/postman-api-002.jpeg)
+
+    Send the request and check the response.
+
+    ![postman-api-003](./doc/img/postman-api-003.jpeg)

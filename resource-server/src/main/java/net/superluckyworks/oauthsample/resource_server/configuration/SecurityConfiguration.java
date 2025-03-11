@@ -15,7 +15,7 @@ public class SecurityConfiguration
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception
     {
         http
-            .cors(Customizer.withDefaults())
+            .cors(cors -> cors.disable())
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/actuator/**").permitAll()    //Permit acutuator api
@@ -24,6 +24,7 @@ public class SecurityConfiguration
                 .requestMatchers("/api/public/**", "/api/**").permitAll() //Permit public api
                 .anyRequest().authenticated()   //Require authentication for all other requests
             )
+            .oauth2ResourceServer(resourceSever-> resourceSever.jwt(Customizer.withDefaults()))
             .httpBasic(Customizer.withDefaults());
 
         return http.build();
