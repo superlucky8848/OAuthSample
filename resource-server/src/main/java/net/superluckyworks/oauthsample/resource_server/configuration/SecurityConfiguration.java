@@ -28,5 +28,5 @@ public class SecurityConfiguration
             .httpBasic(Customizer.withDefaults());
 
         return http.build();
-    }   
+    }
 }
