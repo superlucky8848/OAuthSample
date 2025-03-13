@@ -1,5 +1,7 @@
 package net.superluckyworks.oauthsample.auth_server.configuration;
 
+import java.util.Set;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,8 +10,12 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
@@ -97,5 +103,20 @@ public class SecurityConfiguration
         config.setAllowCredentials(true);
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    @Bean
+    OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer()
+    {
+        return context -> {
+            if(OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()))
+            {
+                context.getClaims().claims(claims -> 
+                {
+                    Set<String> authorities = AuthorityUtils.authorityListToSet(context.getPrincipal().getAuthorities());
+                    claims.put("authorities", authorities);
+                });
+            }
+        };
     }
 }

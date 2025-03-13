@@ -1402,6 +1402,29 @@ CorsConfigurationSource corsConfigurationSource()
 }
 ```
 
+### Add autorities claims to jwt token
+
+Because the system don't load authorities by scope, but authorities in database of the auth server, so a custom claims `authorities` need to add to the JWT.
+
+To archieve this, add a custom `OAuth2TokenCustomizer<JwtEncodingContext>` Bean to the `SecurityConfiguration` class.
+
+```java
+@Bean
+OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer()
+{
+    return context -> {
+        if(OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()))
+        {
+            context.getClaims().claims(claims -> 
+            {
+                Set<String> authorities = AuthorityUtils.authorityListToSet(context.getPrincipal().getAuthorities());
+                claims.put("authorities", authorities);
+            });
+        }
+    };
+}
+```
+
 ## Step 6: Configure resource server
 
 ### Configure API defination
@@ -1491,3 +1514,41 @@ After logged in, it will redirect to swagger page with success notification.
 Then one can try to call the private api using oauth token. Note the `Authorization: Beare` token in the request and 200 code in response.
 
 ![resource-server-oauth-005](./doc/img/resource-server-oauth-005.jpeg)
+
+### Add apis to retrieve current principle and authorities
+
+Add following apis in `PrivateController` to retrieve principal and authorities attribute of the current logged in user.
+
+```java
+@Operation(description = "Get Current User Information")
+@GetMapping("/user-info")
+public ResultEntity<Object> userInfo(Authentication auth)
+{
+    return ResultEntity.success(auth.getPrincipal());
+}
+
+@Operation(description = "Get Current User Authorities")
+@GetMapping("/user-authorities")
+public ResultEntity<List<GrantedAuthority>> userAuthorities(Authentication auth) 
+{
+    List<GrantedAuthority> result = new ArrayList<GrantedAuthority>(auth.getAuthorities());
+    return ResultEntity.success(result);
+}
+```
+
+### Configure resource server to load custom claims in JWT Token to load currect authorities
+
+To load JWT claim: `authorities` value to GrantedAuthories of SecurityContext of resouce server, add a custom `JwtAuthenticationConverter` to the `SecurityConfiguration` class of resouce server.
+
+```java
+@Bean
+JwtAuthenticationConverter jwtAuthenticationConverter()
+{
+    JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+    jwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("authorities");
+
+    JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
+    jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwtGrantedAuthoritiesConverter);
+    return jwtAuthenticationConverter;
+}
+```
