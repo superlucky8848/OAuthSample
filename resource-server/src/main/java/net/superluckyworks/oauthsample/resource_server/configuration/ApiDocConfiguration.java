@@ -36,11 +36,10 @@ import io.swagger.v3.oas.models.info.License;
         )
     )
 })
-
 public class ApiDocConfiguration 
 {
     @Bean
-    public OpenAPI apiDefination()
+    OpenAPI apiDefination()
     {
         return new OpenAPI()
             .info(

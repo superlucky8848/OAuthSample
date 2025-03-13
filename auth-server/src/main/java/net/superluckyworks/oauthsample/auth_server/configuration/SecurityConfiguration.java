@@ -13,6 +13,9 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import jakarta.servlet.DispatcherType;
 import net.superluckyworks.oauthsample.auth_server.service.MapOAuthUserService;
@@ -33,7 +36,7 @@ public class SecurityConfiguration
         http.securityMatcher(oauth2AuthorizationServerConfigurer.getEndpointsMatcher())
             .with(oauth2AuthorizationServerConfigurer, authserver -> authserver.oidc(Customizer.withDefaults()))
             .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
-            .cors(cors -> cors.disable())
+            .cors(Customizer.withDefaults())
             .exceptionHandling(exceptions -> exceptions
                 .defaultAuthenticationEntryPointFor(
                     new LoginUrlAuthenticationEntryPoint("/login"), 
@@ -47,7 +50,7 @@ public class SecurityConfiguration
     @Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
     {
-        http.cors(cors -> cors.disable())
+        http.cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize ->authorize
                 .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()
@@ -71,10 +74,7 @@ public class SecurityConfiguration
                     else res.sendRedirect("/login?error");
                 })
             )
-            .formLogin(formLogin -> formLogin
-                .defaultSuccessUrl("/", true)
-                .permitAll()
-            )
+            .formLogin(Customizer.withDefaults())
             .logout(logout -> logout
                 .logoutUrl("/logout")
                 .logoutSuccessUrl("/")
@@ -83,5 +83,19 @@ public class SecurityConfiguration
             );
 
         return http.build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource()
+    {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        CorsConfiguration config = new CorsConfiguration();
+        config.addAllowedHeader("*");
+        config.addAllowedMethod("*");
+        config.addAllowedOrigin("http://localhost:8081");
+        config.addAllowedOrigin("http://localhost:8082");
+        config.setAllowCredentials(true);
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }

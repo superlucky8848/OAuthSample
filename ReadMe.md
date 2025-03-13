@@ -1314,3 +1314,180 @@ Download postman, disable auto follow redirection in File>Setting>General.
     Send the request and check the response.
 
     ![postman-api-003](./doc/img/postman-api-003.jpeg)
+
+### Add CORS configuration for browser apps
+
+Browser automatically add preflight requests to non-simple requests that javascript calls, like fetch(). Swagger-ui oauth authorization and SPA apps need Auth server correctly configure CORS. Disable it is not enough.
+
+So At security settings change cors settings to use default on both `SecurityFilterChain`, so the configuration Bean would be like:
+
+```java
+@Bean
+@Order(1)
+SecurityFilterChain authserverFilterChain(HttpSecurity http) throws Exception
+{
+    OAuth2AuthorizationServerConfigurer oauth2AuthorizationServerConfigurer = OAuth2AuthorizationServerConfigurer.authorizationServer();
+
+    http.securityMatcher(oauth2AuthorizationServerConfigurer.getEndpointsMatcher())
+        .with(oauth2AuthorizationServerConfigurer, authserver -> authserver.oidc(Customizer.withDefaults()))
+        .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+        .cors(Customizer.withDefaults())
+        .exceptionHandling(exceptions -> exceptions
+            .defaultAuthenticationEntryPointFor(
+                new LoginUrlAuthenticationEntryPoint("/login"), 
+                new MediaTypeRequestMatcher(MediaType.TEXT_HTML))
+        );
+    
+    return http.build();
+}
+
+@Bean
+@Order(2)
+SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception 
+{
+    http.cors(Customizer.withDefaults())
+        .csrf(csrf -> csrf.disable())
+        .authorizeHttpRequests(authorize ->authorize
+            .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.INCLUDE).permitAll()
+            .requestMatchers("/", "/index.html", "/register.html").permitAll()
+            .anyRequest().authenticated()
+        )
+        .oauth2Login(oauth2Login -> oauth2Login
+            .userInfoEndpoint(userInfo -> userInfo
+                .userService(mapOAuthUserService)
+            )
+            .failureHandler((req, res, e) -> {
+                if(e instanceof OAuth2AuthenticationException)
+                {
+                    OAuth2AuthenticationException oauth2Exception = (OAuth2AuthenticationException) e;
+                    if(oauth2Exception.getError().getErrorCode().compareTo("NO_LOCAL_USER") == 0)
+                    {
+                        res.sendRedirect("/register.html?email=" + oauth2Exception.getError().getDescription());
+                    }
+                    else res.sendRedirect("/login?error");
+                }
+                else res.sendRedirect("/login?error");
+            })
+        )
+        .formLogin(formLogin -> formLogin
+            .defaultSuccessUrl("/", true)
+            .permitAll()
+        )
+        .logout(logout -> logout
+            .logoutUrl("/logout")
+            .logoutSuccessUrl("/")
+            .invalidateHttpSession(true)
+            .deleteCookies("JSESSIONID")
+        );
+
+    return http.build();
+}
+```
+
+Then add a `CorsConfigurationSource` Bean and allow CORS requests from client (Swagger-ui of the resource server for example)
+
+```java
+@Bean
+CorsConfigurationSource corsConfigurationSource()
+{
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    CorsConfiguration config = new CorsConfiguration();
+    config.addAllowedHeader("*");
+    config.addAllowedMethod("*");
+    config.addAllowedOrigin("http://localhost:8081");
+    config.addAllowedOrigin("http://localhost:8082");
+    config.setAllowCredentials(true);
+    source.registerCorsConfiguration("/**", config);
+    return source;
+}
+```
+
+## Step 6: Configure resource server
+
+### Configure API defination
+
+Change the @SecurityScheme annotation of `ApiDocConfiguration` add OAuth config to our Auth Server. The `basicScheme` from previous steps is keeped for tests so we combine the two configuration annotation in `@SecuritySchemes`.
+
+```java
+@Configuration
+@SecuritySchemes({
+    @SecurityScheme(
+        name = "basicScheme", 
+        type = SecuritySchemeType.HTTP, 
+        scheme = "basic"),
+    @SecurityScheme(
+        name = "oauth2Scheme",
+        type = SecuritySchemeType.OAUTH2,
+        flows = @OAuthFlows(authorizationCode = 
+            @OAuthFlow(
+                authorizationUrl = "http://localhost:8081/oauth2/authorize",
+                tokenUrl = "http://localhost:8081/oauth2/token",
+                scopes = {
+                    @OAuthScope(name="openid"),
+                    @OAuthScope(name="profile"),
+                    @OAuthScope(name="email")
+                }
+            )
+        )
+    )
+})
+public class ApiDocConfiguration 
+{
+    // Api definations omitted
+}
+```
+
+Note that the `authorizationUrl`, `tokenUrl` and `scopes` must match the settings of Auth Server.
+
+### Configure controller settings
+
+At `PrivateController` class add annotation to notify those api use both `basicScheme` and `oauth2Scheme`.
+
+```java
+@RestController
+@RequestMapping(path = "/api/private", produces = { MediaType.APPLICATION_JSON_VALUE })
+@SecurityRequirements({
+    @SecurityRequirement(name = "basicScheme"),
+    @SecurityRequirement(name = "oauth2Scheme")
+})
+public class PrivateController 
+{
+    // Api endpoints omitted.
+}
+```
+
+### Configure Swagger-UI default value
+
+At `application.properties` add configurations to add default values to swagger-ui's oauth client.
+
+```properties
+springdoc.swagger-ui.csrf.enabled=false
+springdoc.swagger-ui.oauth.app-name=Udata
+springdoc.swagger-ui.oauth.client-id=udata-client
+springdoc.swagger-ui.oauth.client-secret=123456
+springdoc.swagger-ui.oauth.scopes=openid,profile,email
+```
+
+### Test oauth authorization use swagger-ui
+
+Start both auth and resource server, browse the private api swagger page.
+
+[http://localhost:8082/apidoc/swagger-ui/index.html?urls.primaryName=private](http://localhost:8082/apidoc/swagger-ui/index.html?urls.primaryName=private)
+
+![resource-server-oauth-001](./doc/img/resource-server-oauth-001.jpeg)
+
+The Client information is auto filled.
+
+![resource-server-oauth-002](./doc/img/resource-server-oauth-002.jpeg)
+
+If the auth-server has not logged in (have session cookie), it will show login page:
+
+![resource-server-oauth-003](./doc/img/resource-server-oauth-003.jpeg)
+
+After logged in, it will redirect to swagger page with success notification.
+
+![resource-server-oauth-004](./doc/img/resource-server-oauth-004.jpeg)
+
+Then one can try to call the private api using oauth token. Note the `Authorization: Beare` token in the request and 200 code in response.
+
+![resource-server-oauth-005](./doc/img/resource-server-oauth-005.jpeg)

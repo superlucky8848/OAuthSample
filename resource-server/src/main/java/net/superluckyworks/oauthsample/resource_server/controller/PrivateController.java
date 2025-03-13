@@ -9,11 +9,15 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import net.superluckyworks.oauthsample.resource_server.model.ResultEntity;
 
 @RestController
 @RequestMapping(path = "/api/private", produces = { MediaType.APPLICATION_JSON_VALUE })
-@SecurityRequirement(name = "basicScheme")
+@SecurityRequirements({
+    @SecurityRequirement(name = "basicScheme"),
+    @SecurityRequirement(name = "oauth2Scheme")
+})
 public class PrivateController 
 {
     @Operation(description = "Say Hello Privatge Call")
