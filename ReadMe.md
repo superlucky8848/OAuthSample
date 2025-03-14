@@ -1552,3 +1552,23 @@ JwtAuthenticationConverter jwtAuthenticationConverter()
     return jwtAuthenticationConverter;
 }
 ```
+
+## Step 7: Create fornt end
+
+Create a next.js app useing npx create-next-app
+
+```cmd
+npx create-next-app@latest
+# options
+```
+
+and the options are:
+
+- √ What is your project named? ... test-front
+- √ Would you like to use ESLint? ... <u>No</u> / Yes
+- √ Would you like to use Tailwind CSS? ... No / <u>Yes</u>
+- √ Would you like your code inside a `src/` directory? ... No / <u>Yes</u>
+- √ Would you like to use App Router? (recommended) ... No / <u>Yes</u>
+- √ Would you like to use Turbopack for `next dev`? ... No / <u>Yes</u>
+- √ Would you like to customize the import alias (`@/*` by default)? ...  <u>No</u> / Yes
+- √ Would you like to use TypeScript? ... No / <u>Yes</u>
