@@ -40,7 +40,8 @@ public class SecurityConfiguration
         OAuth2AuthorizationServerConfigurer oauth2AuthorizationServerConfigurer = OAuth2AuthorizationServerConfigurer.authorizationServer();
 
         http.securityMatcher(oauth2AuthorizationServerConfigurer.getEndpointsMatcher())
-            .with(oauth2AuthorizationServerConfigurer, authserver -> authserver.oidc(Customizer.withDefaults()))
+            .with(oauth2AuthorizationServerConfigurer, authserver -> authserver
+                .oidc(Customizer.withDefaults()))
             .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
             .cors(Customizer.withDefaults())
             .exceptionHandling(exceptions -> exceptions
