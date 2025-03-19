@@ -1772,25 +1772,39 @@ Modify `src\ui\Header.tsx` to add Sign-In and Sign-out button
 ```tsx
 'use client';
 
-import { signIn, signOut } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 
 export default function Heeader()
 {
+    const { status } = useSession();
     return (
         <header className="flex p-2 gap-1 align-middle justify-between bg-slate-600 text-slate-200">
             <Link className="flex-1" href="/">Header</Link>
-            <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold rounded px-4"
-                onClick={() => signIn()}
-            >
-                Sign-In
-            </button>
-            <button 
-                className="bg-red-500 hover:bg-red-700 text-white font-bold rounded px-4"
-                onClick={() => signOut()}
-            >
-                Sign-Out
-            </button>
+            {status === "authenticated" &&
+                <button
+                    className="bg-red-700 hover:bg-red-500 text-white font-bold rounded px-4"
+                    onClick={() => signOut()}
+                >
+                    Sign-Out
+                </button>
+            }
+            {status !== "authenticated" &&
+                <button
+                    className="bg-blue-700 hover:bg-blue-500 text-white font-bold rounded px-4"
+                    onClick={() => signIn()}
+                >
+                    Sign-In
+                </button>
+            }
+            {status != "authenticated" &&
+                <button
+                    className="bg-green-700 hover:bg-green-500 text-white font-bold rounded px-4"
+                    onClick={() => alert("Sign-Up")}
+                >
+                    Sign-Up
+                </button>
+            }         
         </header>
     );
 }
@@ -1809,3 +1823,110 @@ Click `Sign-In` button to load sign-in page, in current setting, it will use git
 After github authentication process, the page is loaded again with user session set.
 
 ![front-sign-in-002](./doc/img/front-sign-in-002.jpeg)
+
+### Add access token to client
+
+In this section, we will modify default behaviour of github provider of NextAuth.js. Retriving accesss_token to use it in client script.
+
+First, we modify the basic type of `Session` and `JWT` to add properties. We use Typescript's `Module Argumentation` technic to do so.
+
+Add `types\next-auth.d.ts`
+
+```ts
+import { JWT } from "next-auth/jwt"
+
+declare module "next-auth" {
+    /**
+     * Returned by `useSession`, `getSession` and received as a prop on the `SessionProvider` React Context
+     */
+    interface Session
+    {
+        access_token: string
+    }
+}
+
+declare module "next-auth/jwt"
+{
+    /** Returned by the `jwt` callback and `getToken`, when using JWT sessions */
+    interface JWT 
+    {
+        access_token: string,
+        expires_at: number,
+        refresh_token?: string
+    }
+}
+```
+
+Add typeRoots to `tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    // other options omitted...
+    "typeRoots": ["./types"]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+Note that `access_token: string` is added to `Session` interface of `next-auth` module, `access_token: string`, `expires_at: number`, `refresh_token?: string` is added to `JWT` interface of `next-auth/jwt` module.
+
+Modify `src\app\api\authSession.ts` add token management in both jwt() and session() callback, jwt() always runs before session()
+
+```ts
+import { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from "next";
+import { AuthOptions, getServerSession } from "next-auth";
+import Github from "next-auth/providers/github";
+
+export const nextAuthOption: AuthOptions = {
+    providers: [
+        Github({
+            clientId: 'Ov23liaI4PlnSCCRlBnX',
+            clientSecret: "a8b7a5be15bfc27c22f93b7a7a5f4133c6f84053"
+        })
+    ],
+    callbacks:{
+        async jwt({token, account})
+        {
+            if(account) 
+            {
+                return {
+                    ...token,
+                    access_token: account.access_token || "",
+                    expires_at: account.expires_at || 0,
+                    refresh_token: account.refresh_token
+                };
+            }
+            else if(Date.now() < token.expires_at) 
+            {
+                return token;
+            }
+            else
+            {
+                console.log("refresh token needed");
+                return token;
+            }
+        },
+        async session({session, token})
+        {
+            session.user = {name: token.name, email: token.email};
+            session.access_token = token.access_token;
+            return session;
+        }
+    }
+};
+
+export function getAuthSession(...args: [GetServerSidePropsContext["req"], GetServerSidePropsContext["res"]]
+    | [NextApiRequest, NextApiResponse]
+    | [])
+{
+    return getServerSession(...args, nextAuthOption);
+}
+```
+
+run the app and login with github to see how token is retrived.
+
+![front-sign-in-003](./doc/img/front-sign-in-003.jpeg)
+
+Note that the `access_token` is retrieved from session.
