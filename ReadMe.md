@@ -1929,4 +1929,4 @@ run the app and login with github to see how token is retrived.
 
 ![front-sign-in-003](./doc/img/front-sign-in-003.jpeg)
 
-Note that the `access_token` is retrieved from session.
+Note that the `access_token` is retrieved from session. and user object is also modified, no picture is set.
