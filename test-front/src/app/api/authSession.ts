@@ -30,8 +30,8 @@ export const nextAuthOption: AuthOptions = {
                 console.log("Token Set", tokens);
                 return {
                     id: profile.sub,
-                    name: "SuperLucky Test",
-                    email: "mail.superlucky@test.com"
+                    name: profile.udata_name || "(Unknown)",
+                    email: profile.udata_email || "(Unknown)"
                 }
             }
         }

@@ -1,45 +1,60 @@
 package net.superluckyworks.oauthsample.auth_server.service;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.stereotype.Service;
+
+import net.superluckyworks.oauthsample.auth_server.model.HybridUser;
 
 @Service
 public class AuthUserDetailsService implements UserDetailsService
 {
-    private InMemoryUserDetailsManager userDetailsManager;
+    Map<String, HybridUser> users = new HashMap<>();
 
     public AuthUserDetailsService()
     {
-        // Load some test users;
-        List<UserDetails> users = Arrays.asList(
-            User.withUsername("test")
-                .password("{noop}test")
-                .roles("USER")
-                .build()
-            ,User.withUsername("admin")
-                .password("{noop}admin")
-                .roles("USER", "ADMIN")
-                .build()
-            ,User.withUsername("mail.superlucky@gmail.com")
-                .password("{noop}superlucky")
-                .roles("USER", "ADMIN")
-                .build()
+        users.put("test", 
+            new HybridUser(
+                User.withUsername("test")
+                    .password("{noop}test")
+                    .roles("USER")
+                    .build()
+            )
         );
-
-        userDetailsManager = new InMemoryUserDetailsManager(users);
+        users.put("admin", 
+            new HybridUser(
+                User.withUsername("admin")
+                    .password("{noop}admin")
+                    .roles("USER", "ADMIN")
+                    .build()
+            )
+        );
+        users.put("mail.superlucky@gmail.com", 
+            new HybridUser(
+                User.withUsername("mail.superlucky@gmail.com")
+                    .password("{noop}superlucky")
+                    .roles("USER", "ADMIN")
+                    .build()
+            )
+        );
     }
 
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException 
     {
-        return userDetailsManager.loadUserByUsername(username);
+        if(users.containsKey(username))
+        {
+            return users.get(username);
+        }
+        else
+        {
+            throw new UsernameNotFoundException("User not found: " + username);
+        }
     }
 }

@@ -2038,3 +2038,132 @@ The the browser will redirect to `http://localhost:8081/` to do the following fl
 After logged in form auth-server, the browser will redirect back to front with currect user info and token set.
 
 ![front-sign-in-006](./doc/img/front-sign-in-006.jpeg)
+
+### Transfer user info in token
+
+Usually when get access token, one should call user-info api to get the user information, like email or authorities. However, with OpenID specification, and jwt token technic, we can embed the nessessary user information frontend need into the access_token and id_token, to make resource server and frontend client get info directly from the token, save an api call.
+
+First modify Auth-Server's `AuthUserDetailsService`, previously we use spring's InMemoryUserServiceManager as a dummy database, however it only return `User` type user information, we want `HybridUser` been sent to the Spring Security Context Holder, so we implement custom UserDetailsService.
+
+```java
+@Service
+public class AuthUserDetailsService implements UserDetailsService
+{
+    Map<String, HybridUser> users = new HashMap<>();
+
+    public AuthUserDetailsService()
+    {
+        users.put("test", 
+            new HybridUser(
+                User.withUsername("test")
+                    .password("{noop}test")
+                    .roles("USER")
+                    .build()
+            )
+        );
+        users.put("admin", 
+            new HybridUser(
+                User.withUsername("admin")
+                    .password("{noop}admin")
+                    .roles("USER", "ADMIN")
+                    .build()
+            )
+        );
+        users.put("mail.superlucky@gmail.com", 
+            new HybridUser(
+                User.withUsername("mail.superlucky@gmail.com")
+                    .password("{noop}superlucky")
+                    .roles("USER", "ADMIN")
+                    .build()
+            )
+        );
+    }
+
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException 
+    {
+        if(users.containsKey(username))
+        {
+            return users.get(username);
+        }
+        else
+        {
+            throw new UsernameNotFoundException("User not found: " + username);
+        }
+    }
+}
+```
+
+Then, Modify `jwtCustomizer` Bean definition in `SecurityCOnfiguration` in Auth-Server. Retirver Principal(Containing `HybridUser`) and Authority form SecurityContext and put it in access_token and id_token the auth-server provided to the authenticated user.
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfiguration 
+{
+    // Other configuration omitted
+
+    @Bean
+    OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer()
+    {
+        // Add custom claims to the JWT access token and id token
+        return context -> {
+            if(OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) 
+            || OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue()))
+            {
+                Authentication principal = context.getPrincipal();
+                String email = principal.getName(); // name should be the email
+                Set<String> authorities = AuthorityUtils.authorityListToSet(principal.getAuthorities());
+
+                context.getClaims().claims(claims -> 
+                {
+                    claims.put("udata_authorities", authorities);
+                    claims.put("udata_email", email);
+                });
+            }
+        };
+    }
+}
+```
+
+Note that we put `udata_authorities` and `udata_email` custom claims in the access_token and id_token.
+
+Finally modify `src/app/api/authSession.ts` in test-front to use those custom claims in token to populate user info in front end.
+
+```ts
+export const nextAuthOption: AuthOptions = {
+    providers: [
+        // Other privieders omitted,
+        {
+            id: "front-client",
+            name: "Front Client",
+            type: "oauth",
+            version: "2.0",
+            wellKnown: "http://localhost:8081/.well-known/openid-configuration",
+            idToken: true,
+            clientId: "front-client",
+            clientSecret: "654321",
+            authorization: {
+                url: "http://localhost:8081/oauth2/authorize",
+                params: {scope: "openid email", response_type: "code"}
+            },
+            token: "http://localhost:8081/oauth2/token",
+            userinfo: "http://localhost:8081/oauth2/userinfo",
+            jwks_endpoint: "http://localhost:8081/oauth2/jwks",
+            issuer: "http://localhost:8081",
+            profile(profile, tokens) {
+                console.log("Profile", profile);
+                console.log("Token Set", tokens);
+                return {
+                    id: profile.sub,
+                    /* populate user session with information from token */
+                    name: profile.udata_name || "(Unknown)",
+                    email: profile.udata_email || "(Unknown)"
+                }
+            }
+        }
+    ],
+    // Other options omitted.
+}
+```

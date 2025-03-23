@@ -10,8 +10,10 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.oidc.endpoint.OidcParameterNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
@@ -109,13 +111,19 @@ public class SecurityConfiguration
     @Bean
     OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer()
     {
+        // Add custom claims to the JWT access token and id token
         return context -> {
-            if(OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()))
+            if(OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) 
+            || OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue()))
             {
+                Authentication principal = context.getPrincipal();
+                String email = principal.getName(); // name should be the email
+                Set<String> authorities = AuthorityUtils.authorityListToSet(principal.getAuthorities());
+
                 context.getClaims().claims(claims -> 
                 {
-                    Set<String> authorities = AuthorityUtils.authorityListToSet(context.getPrincipal().getAuthorities());
-                    claims.put("authorities", authorities);
+                    claims.put("udata_authorities", authorities);
+                    claims.put("udata_email", email);
                 });
             }
         };
