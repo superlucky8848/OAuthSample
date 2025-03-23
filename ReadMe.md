@@ -1930,3 +1930,99 @@ run the app and login with github to see how token is retrived.
 ![front-sign-in-003](./doc/img/front-sign-in-003.jpeg)
 
 Note that the `access_token` is retrieved from session. and user object is also modified, no picture is set.
+
+### Change frontend to use auth-server
+
+First, register front-end app as an new client in auth server. Add following configurations at `application.properties` in auth server:
+
+```poperties
+spring.security.oauth2.authorizationserver.client.front-client.registration.client-id=front-client
+spring.security.oauth2.authorizationserver.client.front-client.registration.client-secret={noop}654321
+spring.security.oauth2.authorizationserver.client.front-client.registration.client-authentication-methods=client_secret_post,client_secret_basic
+spring.security.oauth2.authorizationserver.client.front-client.registration.scopes=openid,profile,email
+spring.security.oauth2.authorizationserver.client.front-client.registration.authorization-grant-types=authorization_code,refresh_token
+spring.security.oauth2.authorizationserver.client.front-client.registration.redirect-uris=http://localhost:3000/api/auth/callback/front-client
+spring.security.oauth2.authorizationserver.client.front-client.registration.post-logout-redirect-uris=http://localhost:3000/logout
+spring.security.oauth2.authorizationserver.client.front-client.require-authorization-consent=false
+```
+
+Then modify `src\app\api\authSession.ts` add an privider to connect to auth-server
+
+```ts
+export const nextAuthOption: AuthOptions = {
+    providers: [
+        Github({
+            clientId: 'Ov23liaI4PlnSCCRlBnX',
+            clientSecret: "a8b7a5be15bfc27c22f93b7a7a5f4133c6f84053"
+        }),
+        {
+            id: "front-client",
+            name: "Front Client",
+            type: "oauth",
+            version: "2.0",
+            wellKnown: "http://localhost:8081/.well-known/openid-configuration",
+            idToken: true,
+            clientId: "front-client",
+            clientSecret: "654321",
+            authorization: {
+                url: "http://localhost:8081/oauth2/authorize",
+                params: {scope: "openid email", response_type: "code"}
+            },
+            token: "http://localhost:8081/oauth2/token",
+            userinfo: "http://localhost:8081/oauth2/userinfo",
+            jwks_endpoint: "http://localhost:8081/oauth2/jwks",
+            issuer: "http://localhost:8081",
+            profile(profile, tokens) {
+                console.log("Profile", profile);
+                console.log("Token Set", tokens);
+                return {
+                    id: profile.sub,
+                    name: "SuperLucky Test",
+                    email: "mail.superlucky@test.com"
+                }
+            }
+        }
+    ],
+    callbacks:{
+        async jwt({token, account, profile})
+        {
+            console.log("jwt-info-token", token);
+            console.log("jwt-info-account", account);
+            console.log("jwt-info-profile", profile);
+            if(account) 
+            {
+                return {
+                    ...token,
+                    access_token: account.access_token || "",
+                    expires_at: account.expires_at || 0,
+                    refresh_token: account.refresh_token
+                };
+            }
+            else if(Date.now() < token.expires_at * 1000) 
+            {
+                return token;
+            }
+            else
+            {
+                console.log("refresh token needed");
+                return token;
+            }
+        },
+        async session({session, token})
+        {
+            session.user = {name: token.name, email: token.email};
+            session.access_token = token.access_token;
+            return session;
+        }
+    }
+};
+```
+
+Change `src/app/page.tsx` of the `<pre>` table to show a very long token.
+
+```tsx
+<div className="grid grid-rows-[5rem_1fr_1fr] h-full w-full items-center justify-items-center p-8 gap-16 sm:p-20">
+    { /*Other elements omitted*/ }
+    <pre className="max-w-[80vw] overflow-auto whitespace-pre-wrap">{JSON.stringify(session, null, 2)}</pre>
+</div>
+```

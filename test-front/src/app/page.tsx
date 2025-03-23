@@ -11,7 +11,7 @@ export default async function Home()
         <li><Link href="/public"> Public Page </Link></li>
         <li><Link href="/private"> Private Page </Link></li>
       </ul>
-      <pre>{JSON.stringify(session, null, 2)}</pre>
+      <pre className="max-w-[80vw] overflow-auto whitespace-pre-wrap">{JSON.stringify(session, null, 2)}</pre>
     </div>
   );
 }

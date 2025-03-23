@@ -7,11 +7,41 @@ export const nextAuthOption: AuthOptions = {
         Github({
             clientId: 'Ov23liaI4PlnSCCRlBnX',
             clientSecret: "a8b7a5be15bfc27c22f93b7a7a5f4133c6f84053"
-        })
+        }),
+        {
+            id: "front-client",
+            name: "Front Client",
+            type: "oauth",
+            version: "2.0",
+            wellKnown: "http://localhost:8081/.well-known/openid-configuration",
+            idToken: true,
+            clientId: "front-client",
+            clientSecret: "654321",
+            authorization: {
+                url: "http://localhost:8081/oauth2/authorize",
+                params: {scope: "openid email", response_type: "code"}
+            },
+            token: "http://localhost:8081/oauth2/token",
+            userinfo: "http://localhost:8081/oauth2/userinfo",
+            jwks_endpoint: "http://localhost:8081/oauth2/jwks",
+            issuer: "http://localhost:8081",
+            profile(profile, tokens) {
+                console.log("Profile", profile);
+                console.log("Token Set", tokens);
+                return {
+                    id: profile.sub,
+                    name: "SuperLucky Test",
+                    email: "mail.superlucky@test.com"
+                }
+            }
+        }
     ],
     callbacks:{
-        async jwt({token, account})
+        async jwt({token, account, profile})
         {
+            console.log("jwt-info-token", token);
+            console.log("jwt-info-account", account);
+            console.log("jwt-info-profile", profile);
             if(account) 
             {
                 return {
@@ -21,7 +51,7 @@ export const nextAuthOption: AuthOptions = {
                     refresh_token: account.refresh_token
                 };
             }
-            else if(Date.now() < token.expires_at) 
+            else if(Date.now() < token.expires_at * 1000) 
             {
                 return token;
             }
