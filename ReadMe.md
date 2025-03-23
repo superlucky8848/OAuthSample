@@ -2026,3 +2026,15 @@ Change `src/app/page.tsx` of the `<pre>` table to show a very long token.
     <pre className="max-w-[80vw] overflow-auto whitespace-pre-wrap">{JSON.stringify(session, null, 2)}</pre>
 </div>
 ```
+
+Navigate to `http://localhost:3000/` sign out if nessessary, this time, login using `Front Client` portal.
+
+![front-sign-in-004](./doc/img/front-sign-in-004.jpeg)
+
+The the browser will redirect to `http://localhost:8081/` to do the following flow of login:
+
+![front-sign-in-005](./doc/img/front-sign-in-005.jpeg)
+
+After logged in form auth-server, the browser will redirect back to front with currect user info and token set.
+
+![front-sign-in-006](./doc/img/front-sign-in-006.jpeg)
