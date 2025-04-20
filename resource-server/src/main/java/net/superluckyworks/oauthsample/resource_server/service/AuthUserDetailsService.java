@@ -14,7 +14,7 @@ public class AuthUserDetailsService implements UserDetailsService
 
     public AuthUserDetailsService()
     {
-       UserDetails testUser = User.withUsername("test")
+        UserDetails testUser = User.withUsername("test")
             .password("{noop}test")
             .roles("USER")
             .build();
