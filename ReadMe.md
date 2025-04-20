@@ -1167,6 +1167,16 @@ Basic Auth dialog by browser:
 
 ```properties
 spring.security.oauth2.authorizationserver.issuer=http://localhost:8081
+spring.security.oauth2.authorizationserver.endpoint.authorization-uri=/auth/oauth2/authorize
+spring.security.oauth2.authorizationserver.endpoint.device-authorization-uri=/auth/oauth2/device/code
+spring.security.oauth2.authorizationserver.endpoint.token-uri=/auth/oauth2/token
+spring.security.oauth2.authorizationserver.endpoint.jwk-set-uri=/auth/oauth2/jwks
+spring.security.oauth2.authorizationserver.endpoint.token-introspection-uri=/auth/oauth2/introspect
+spring.security.oauth2.authorizationserver.endpoint.token-revocation-uri=/auth/oauth2/revoke
+spring.security.oauth2.authorizationserver.endpoint.oidc.client-registration-uri=/auth/oidc/connect/register
+spring.security.oauth2.authorizationserver.endpoint.oidc.user-info-uri=/auth/oidc/userinfo
+spring.security.oauth2.authorizationserver.endpoint.oidc.logout-uri=/auth/oidc/connect/logout
+
 spring.security.oauth2.authorizationserver.client.udata-client.registration.client-id=udata-client
 spring.security.oauth2.authorizationserver.client.udata-client.registration.client-name=Udata
 spring.security.oauth2.authorizationserver.client.udata-client.registration.client-secret={noop}123456
@@ -1176,14 +1186,18 @@ spring.security.oauth2.authorizationserver.client.udata-client.registration.auth
 spring.security.oauth2.authorizationserver.client.udata-client.registration.redirect-uris=http://localhost:8082/login/oauth2/code/udata-client,http://localhost:8082/apidoc/swagger-ui/oauth2-redirect.html
 spring.security.oauth2.authorizationserver.client.udata-client.registration.post-logout-redirect-uris=http://localhost:8082/logout
 spring.security.oauth2.authorizationserver.client.udata-client.require-authorization-consent=false
+spring.security.oauth2.authorizationserver.client.udata-client.token.access-token-time-to-live=12h
+spring.security.oauth2.authorizationserver.client.udata-client.token.refresh-token-time-to-live=7d
 ```
 
-`spring.security.oauth2.authorizationserver.issuer` configuration enables jwt support for authorization server. At default `http://localhost:8081/.well-known/openid-configuration` will give all endpoints configured. Notable endpoints encludes:
+`spring.security.oauth2.authorizationserver.issuer` configuration enables jwt support for authorization server. At default <http://localhost:8081/.well-known/openid-configuration> will give all endpoints configured. Notable endpoints encludes:
 
 1. issuer: The iss part of JWT.
 2. authorization_endpoint: Endpoint to get authentication code.
 3. token_endpoint: Endpoint to get authentication token.
 4. jwks_uri: Public key an other information to decode JWT.
+5. access-token-time-to-live: 12h for 12 hours, unit is needed.
+6. refresh-token-time-to-live: 7d for 7 days, unit is needed.
 
 ### Add Security Configuration
 
@@ -1263,14 +1277,14 @@ Download postman, disable auto follow redirection in File>Setting>General.
 
 1. Login and get SESSION ID
 
-    At browser, login and visit `http://localhost:8081/user-info/` and get cookie `JSESSIONID` from dev console.
+    At browser, login and visit <http://localhost:8081/user-info/> and get cookie `JSESSIONID` from dev console.
 
     ![get-cookie](./doc/img/get-session.jpeg)
 
 2. Get Access Code:
 
     Add a request on postman
-    GET `http://localhost:8081/oauth2/authorize?response_type=code&client_id=udata-client&redirect_uri=http://localhost:8082/login/oauth2/code/udata-client&scope=email`
+    GET `http://localhost:8081/auth/oauth2/authorize?response_type=code&client_id=udata-client&redirect_uri=http://localhost:8082/login/oauth2/code/udata-client&scope=email`
 
     ![postman-code-001](./doc/img/postman-code-001.jpeg)
 
@@ -1443,8 +1457,8 @@ Change the @SecurityScheme annotation of `ApiDocConfiguration` add OAuth config 
         type = SecuritySchemeType.OAUTH2,
         flows = @OAuthFlows(authorizationCode = 
             @OAuthFlow(
-                authorizationUrl = "http://localhost:8081/oauth2/authorize",
-                tokenUrl = "http://localhost:8081/oauth2/token",
+                authorizationUrl = "http://localhost:8081/auth/oauth2/authorize",
+                tokenUrl = "http://localhost:8081/auth/oauth2/token",
                 scopes = {
                     @OAuthScope(name="openid"),
                     @OAuthScope(name="profile"),
