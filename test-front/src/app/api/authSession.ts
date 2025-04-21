@@ -17,14 +17,14 @@ export const nextAuthOption: AuthOptions = {
             idToken: true,
             clientId: "front-client",
             clientSecret: "654321",
-            authorization: {
-                url: "http://localhost:8081/oauth2/authorize",
-                params: {scope: "openid email", response_type: "code"}
-            },
-            token: "http://localhost:8081/oauth2/token",
-            userinfo: "http://localhost:8081/oauth2/userinfo",
-            jwks_endpoint: "http://localhost:8081/oauth2/jwks",
-            issuer: "http://localhost:8081",
+            // authorization: {
+            //     url: "http://localhost:8081/auth/oauth2/authorize",
+            //     params: {scope: "openid email", response_type: "code"}
+            // },
+            // token: "http://localhost:8081/auth/oauth2/token",
+            // userinfo: "http://localhost:8081/auth/oidc/userinfo",
+            // jwks_endpoint: "http://localhost:8081/auth/oauth2/jwks",
+            // issuer: "http://localhost:8081",
             profile(profile, tokens) {
                 console.log("Profile", profile);
                 console.log("Token Set", tokens);
