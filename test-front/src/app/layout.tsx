@@ -22,7 +22,7 @@ export default async function RootLayout({
       <body className="bg-background text-foreground h-screen w-screen flex flex-col rounded-3xl">
         <SessionProvider session={session}>
           <Header />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 overflow-auto">{children}</main>
           <Footer />
         </SessionProvider>
       </body>
