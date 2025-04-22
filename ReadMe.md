@@ -2032,6 +2032,8 @@ export const nextAuthOption: AuthOptions = {
 };
 ```
 
+Note about the `jwt()` callback: For the first time user logging in, the `token` is the User object returned by `profile()` callback of the provider, the `account` is the response body of the authorization server, and the `profile` is the user-info (decoded, id_token), the return object is the jwt token for NextAuth. For the following calls of `jwt()` function (when useSession or getServerSession is called), `account` and `profile` is undefined and the `token` is the object returned from the previous calling.
+
 Change `src/app/page.tsx` of the `<pre>` table to show a very long token.
 
 ```tsx

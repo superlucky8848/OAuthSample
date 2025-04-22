@@ -31,7 +31,8 @@ export const nextAuthOption: AuthOptions = {
                 return {
                     id: profile.sub,
                     name: profile.udata_name || "(Unknown)",
-                    email: profile.udata_email || "(Unknown)"
+                    email: profile.udata_email || "(Unknown)",
+                    image: profile.udata_avatar || null
                 }
             }
         }
