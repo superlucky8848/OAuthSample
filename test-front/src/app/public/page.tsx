@@ -1,4 +1,6 @@
+import PublicPage from "@/ui/PublicPage";
+
 export default function Page()
 {
-    return <h2>Public Home</h2>
+    return <PublicPage />
 }

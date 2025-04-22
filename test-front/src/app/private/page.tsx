@@ -1,4 +1,5 @@
 import { getAuthSession } from "@/app/api/authSession";
+import PrivatePage from "@/ui/PrivatePage";
 import { redirect } from "next/navigation";
 
 export default async function Page()
@@ -14,5 +15,5 @@ export default async function Page()
         redirect("/error?" + searchParams.toString());
     }
 
-    return <h2>Private Home</h2>
+    return <PrivatePage />
 }

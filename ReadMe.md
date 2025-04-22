@@ -2183,3 +2183,383 @@ export const nextAuthOption: AuthOptions = {
     // Other options omitted.
 }
 ```
+
+### Test call api
+
+First enable cors can configure for allow all origins for resource server. Edit `resource-server/src/main/java/net/superluckyworks/oauthsample/resource_server/configuration/SecurityConfiguration.java`
+
+```java
+@Bean
+SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception
+{
+    http
+        // Enable CORS
+        .cors(Customizer.withDefaults())
+        .csrf(csrf -> csrf.disable())
+        .authorizeHttpRequests(authorize -> authorize
+            .requestMatchers("/actuator/**").permitAll()    //Permit acutuator api
+            .requestMatchers("/apidoc/**", "/v3/api-docs*/**").permitAll() //Permit Spring Doc Swagger UI
+            .requestMatchers("/api/private/**").authenticated() //Require authentication for private api
+            .requestMatchers("/api/public/**", "/api/**").permitAll() //Permit public api
+            .anyRequest().authenticated()   //Require authentication for all other requests
+        )
+        .oauth2ResourceServer(resourceSever-> resourceSever.jwt(Customizer.withDefaults()))
+        .httpBasic(Customizer.withDefaults());
+
+    return http.build();
+}
+
+// Other settings omitted ...
+
+// Setting CORS Policy to Allow All access to /api/ path
+@Bean
+CorsConfigurationSource corsConfigurationSource()
+{
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    CorsConfiguration config = new CorsConfiguration();
+    config.addAllowedHeader("*");
+    config.addAllowedMethod("*");
+    config.addAllowedOriginPattern("*");
+    config.setAllowCredentials(true);
+    source.registerCorsConfiguration("/api/**", config);
+    return source;
+}
+```
+
+Next add some basic type definition. Create `test-front/src/lib/types.ts` and add following types.
+
+```ts
+import { Serializable } from "child_process";
+
+export type ApiResult = {
+    success: boolean,
+    errorInfo: {
+        errorName: string,
+        errorInfo: string
+    } | null,
+    result: Serializable | Serializable[] | null
+};
+
+export type ScriptError = {
+    caller: string,
+    message: string,
+    error?: string
+};
+
+export type UdataResult = {
+    message?: string,
+    apiResult?: ApiResult,
+    scriptError?: ScriptError
+    blob?: Blob
+};
+```
+
+Next add some util functions for convient, create `test-front/src/lib/utils.ts` add add fullowing functions
+
+```ts
+import { Serializable } from "child_process";
+import { UdataResult, ApiResult, ScriptError } from "./types";
+
+export function udataScriptMessage(message: string): UdataResult
+{
+  return { message: message };
+}
+
+export function udataScriptResult(apiResult: ApiResult): UdataResult
+{
+  return { apiResult: apiResult };
+}
+
+export function udataScriptError(caller: string, message: string, error?: string): UdataResult
+{
+  return {
+    scriptError: {
+      caller: caller,
+      message: message,
+      error: error
+    }
+  };
+}
+
+export function processUdataResult(
+  result: UdataResult,
+  methodName: string,
+  successHandler: (result: Serializable | Serializable[] | null) => void,
+  errorHandler: (scriptError: ScriptError) => void
+)
+{
+  if (result.apiResult)
+  {
+    if (result.apiResult.success)
+    {
+      successHandler(result.apiResult.result);
+    }
+    else
+    {
+      errorHandler({
+        caller: methodName,
+        message: result.apiResult.errorInfo?.errorName || "Unknown server side error",
+        error: result.apiResult.errorInfo?.errorInfo || "Unknown server side error"
+      });
+    }
+
+  }
+  else if (result.scriptError)
+  {
+    errorHandler(result.scriptError);
+  }
+  else if (result.message)
+  {
+    errorHandler({
+      caller: methodName,
+      message: result.message,
+    });
+  }
+  else
+  {
+    errorHandler({
+      caller: methodName,
+      message: `${methodName} returned result of ill format`,
+      error: JSON.stringify(result)
+    });
+  }
+}
+
+export function processUdataResultPromise(
+  resultPromise: Promise<UdataResult>,
+  methodName: string,
+  successHandler: (result: Serializable | Serializable[] | null) => void,
+  errorHandler: (scriptError: ScriptError) => void
+)
+{
+  resultPromise
+    .then(result =>
+    {
+      processUdataResult(result, methodName, successHandler, errorHandler);
+    })
+    .catch(error =>
+    {
+      errorHandler({
+        caller: methodName,
+        message: `${methodName} request failed, returned error`,
+        error: JSON.stringify(error)
+      });
+    });
+}
+```
+
+Next, edit evironment files to add resource server host to `API_HOST` and `NEXT_PUBLIC_API_HOST`
+
+Add following lines to both `test-front\.env.development` and `test-front\.env.production`
+
+```text
+API_HOST=http://localhost:8082
+NEXT_PUBLIC_API_HOST=http://localhost:8082
+```
+
+Finally, let's add some api calls, create `test-front/src/lib/api-common.ts` and add calls to hello api form both public and private path.
+
+```ts
+import { UdataResult } from "@/lib/types";
+import { udataScriptError, udataScriptResult } from "@/lib/utils";
+
+const apiHost: string = process.env.NEXT_PUBLIC_API_HOST || "";
+
+export async function publicHello(name?: string | null): Promise<UdataResult> 
+{
+    const methodName: string = "publicHello";
+
+    try
+    {
+        const url = new URL(`${apiHost}/api/public/hello`);
+        if (name) url.searchParams.append("name", name);
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Accept": "application/json"
+            }
+        });
+        const body = await response.json();
+        
+        return udataScriptResult(body);
+    }
+    catch (error) 
+    {
+        console.error(`Error in ${methodName}: ${error}`);
+        if(error instanceof Error)
+        {
+            return udataScriptError(methodName, error.message, JSON.stringify(error));
+        }
+        else
+        {
+            return udataScriptError(methodName, "Unknown error", JSON.stringify(error));
+        }
+    }    
+}
+
+
+export async function privateHello(token: string, name?: string | null): Promise<UdataResult> 
+{
+    const methodName: string = "privateHello";
+
+    try
+    {
+        const url = new URL(`${apiHost}/api/private/hello`);
+        if (name) url.searchParams.append("name", name);
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Accept": "application/json",
+                // Add access token to request
+                "Authorization": `Bearer ${token}`
+            }
+        });
+        const body = await response.json();
+        return udataScriptResult(body);
+    }
+    catch (error) 
+    {
+        console.error(`Error in ${methodName}: ${error}`);
+        if (error instanceof Error)
+        {
+            return udataScriptError(methodName, error.message, JSON.stringify(error));
+        }
+        else
+        {
+            return udataScriptError(methodName, "Unknown error", JSON.stringify(error));
+        }
+    }
+}
+```
+
+Note that how `token` parameter is added to request in `privateHello()`, all private api endpoints protected by oauth use these patterns.
+
+At last, we add some client component to see how access tokens are retrived from session and use to call protected api.
+
+Create `test-front/src/ui/PublicPage.tsx`
+
+```tsx
+'use client';
+
+import { publicHello } from "@/lib/api-common";
+import { processUdataResultPromise } from "@/lib/utils";
+
+export default function PublicPage()
+{
+  function sayHello()
+  {
+    processUdataResultPromise(
+      publicHello("PublicPage"),
+      "processUdataResultPromise",
+      (result) => alert(result as string),
+      (error) => alert(`Error: ${JSON.stringify(error)}`)
+    );
+  }
+
+  return (
+    <div>
+      <h2>Public Page</h2>
+      <div>
+        <button
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          onClick={sayHello}
+        >
+          hello
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+Create `test-front/src/ui/PrivatePage.tsx`
+
+```tsx
+'use client';
+import { privateHello } from "@/lib/api-common";
+import { processUdataResultPromise } from "@/lib/utils";
+import { useSession } from "next-auth/react";
+
+export default function PrivatePage()
+{
+  // Retrive session from client compoent
+  const { data: session } = useSession();
+  console.log("PrivatePage session", session);
+
+  function sayHello()
+  {
+    if(!session)
+    {
+      alert("User not authenticated");
+      return;
+    }
+    else
+    {
+      // pass access_token from session to api calls.
+      processUdataResultPromise(
+        privateHello(session.access_token, "PrivatePage"),
+        "processUdataResultPromise",
+        (result) => alert(result as string),
+        (error) => alert(`Error: ${JSON.stringify(error)}`)
+      );
+    }
+  }
+
+  return (
+    <div>
+      <h2>Private Page</h2>
+      <div>
+        <button
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          onClick={sayHello}
+        >
+          hello
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+Edit `test-front/src/app/public/page.tsx` and `test-front/src/app/private/page.tsx` to use new client components.
+
+```tsx
+import PublicPage from "@/ui/PublicPage";
+
+export default function Page()
+{
+    return <PublicPage />
+}
+```
+
+```tsx
+import { getAuthSession } from "@/app/api/authSession";
+import PrivatePage from "@/ui/PrivatePage";
+import { redirect } from "next/navigation";
+
+export default async function Page()
+{
+    const session = await getAuthSession();
+
+    const searchParams = new URLSearchParams();
+    searchParams.set("header", "Auth Error");
+    searchParams.set("message", "User not authenticated");
+    
+    if(!session)
+    {
+        redirect("/error?" + searchParams.toString());
+    }
+
+    return <PrivatePage />
+}
+```
+
+Now start auth-server, resource-server and test-front and login then visit both public and private pages, click button to see the responses.
+
+![api-call-login](./doc/img/test-api-call-login.jpeg)
+
+![api-call-public](./doc/img/test-api-call-public.jpeg)
+
+![api-call-private](./doc/img/test-api-call-private.jpeg)
