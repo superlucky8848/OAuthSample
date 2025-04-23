@@ -1692,6 +1692,18 @@ First install next-auth:
 npm install next-auth
 ```
 
+Create an .env.local file containing secret for jwts
+
+```bash
+npx auth secret
+```
+
+Add following lines to both `test-front\.env.development` and `test-front\.env.production`
+
+```text
+NEXTAUTH_URL=http://localhost:3000
+```
+
 Login to github and in `profile>settings>developer settins>Oauth apps` page, set up an oauth app, note `client id` and `client secret`, set redirect url to `http://localhost:3000/`;
 
 Add a file in `src\app\api\authSession.ts` as basic config and session retriver
