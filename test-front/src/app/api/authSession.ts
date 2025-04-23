@@ -2,6 +2,8 @@ import { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from "next
 import { AuthOptions, getServerSession } from "next-auth";
 import Github from "next-auth/providers/github";
 
+const authHost = process.env.NEXT_PUBLIC_AUTH_HOST || "http://localhost:8081";
+
 export const nextAuthOption: AuthOptions = {
     providers: [
         Github({
@@ -13,7 +15,7 @@ export const nextAuthOption: AuthOptions = {
             name: "Front Client",
             type: "oauth",
             version: "2.0",
-            wellKnown: "http://localhost:8081/.well-known/openid-configuration",
+            wellKnown: `${authHost}/.well-known/openid-configuration`,
             idToken: true,
             clientId: "front-client",
             clientSecret: "654321",
@@ -58,14 +60,56 @@ export const nextAuthOption: AuthOptions = {
             }
             else
             {
-                console.log("refresh token needed");
-                return token;
+                console.log("Token expired, refreshing...");
+                if (!token.refresh_token) throw new TypeError("Missing refresh_token");
+
+                try
+                {
+                    const tokenEndpoint = `${authHost}/auth/oauth2/token`;
+                    const params = new URLSearchParams({
+                        client_id: "front-client",
+                        client_secret: "654321",
+                        grant_type: "refresh_token",
+                        refresh_token: token.refresh_token!
+                    });
+
+                    const response = await fetch(tokenEndpoint, {
+                        method: "POST",
+                        body: params,
+                    });
+
+                    const tokensOrError = await response.json();
+
+                    if (!response.ok) throw tokensOrError;
+
+                    const newTokens = tokensOrError as {
+                        access_token: string
+                        expires_in: number
+                        refresh_token?: string
+                    }
+
+                    return {
+                        ...token,
+                        access_token: newTokens.access_token,
+                        expires_at: Math.floor(Date.now() / 1000 + newTokens.expires_in),
+                        // Some providers only issue refresh tokens once, so preserve if we did not get a new one
+                        refresh_token: newTokens.refresh_token || token.refresh_token
+                    }
+                }
+                catch(error)
+                {
+                    console.error("Error refreshing access_token", error)
+                    // If we fail to refresh the token, return an error so we can handle it on the page
+                    token.error = "RefreshTokenError"
+                    return token
+                }
             }
         },
         async session({session, token})
         {
             session.user = {name: token.name, email: token.email};
             session.access_token = token.access_token;
+            session.error = token.error;
             return session;
         }
     }

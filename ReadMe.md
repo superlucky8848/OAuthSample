@@ -2563,3 +2563,163 @@ Now start auth-server, resource-server and test-front and login then visit both 
 ![api-call-public](./doc/img/test-api-call-public.jpeg)
 
 ![api-call-private](./doc/img/test-api-call-private.jpeg)
+
+### Refresh Token
+
+First, add authorization server to env files. Add following lines on both `test-front\.env.development` and `test-front\.env.development`:
+
+```text
+AUTH_HOST=http://localhost:8081
+NEXT_PUBLIC_AUTH_HOST=http://localhost:8081
+```
+
+Edit `test-front\types\next-auth.d.ts` add an error field to Session and JWT to pass error when refreshing tokens.
+
+```ts
+declare module "next-auth" {
+    /**
+     * Returned by `useSession`, `getSession` and received as a prop on the `SessionProvider` React Context
+     */
+    interface Session
+    {
+        access_token: string,
+        // Add Error
+        error?: "RefreshTokenError"
+    }
+}
+
+declare module "next-auth/jwt"
+{
+    /** Returned by the `jwt` callback and `getToken`, when using JWT sessions */
+    interface JWT 
+    {
+        access_token: string,
+        expires_at: number,
+        refresh_token?: string,
+        // Add Error
+        error?: "RefreshTokenError"
+    }
+}
+```
+
+Edit `jwt()` callback of `test-front\src\app\api\authSession.ts` add post request to accquire new access_token using refresh_token.
+
+```ts
+// imports omitted...
+
+const authHost = process.env.NEXT_PUBLIC_AUTH_HOST || "http://localhost:8081";
+
+export const nextAuthOption: AuthOptions = {
+    providers: [
+        // Other providers omitted...
+        {
+            id: "front-client",
+            name: "Front Client",
+            type: "oauth",
+            version: "2.0",
+            // use OpenId-Meta endpoint of auth server to initialze provider
+            wellKnown: `${authHost}/.well-known/openid-configuration`,
+            idToken: true,
+            clientId: "front-client",
+            clientSecret: "654321",
+            // Other endpoints in not needed due to wellKnown is set.
+            // authorization: {
+            //     url: "http://localhost:8081/auth/oauth2/authorize",
+            //     params: {scope: "openid email", response_type: "code"}
+            // },
+            // token: "http://localhost:8081/auth/oauth2/token",
+            // userinfo: "http://localhost:8081/auth/oidc/userinfo",
+            // jwks_endpoint: "http://localhost:8081/auth/oauth2/jwks",
+            // issuer: "http://localhost:8081",
+            profile(profile, tokens) {
+                // omitted...
+            }
+        }
+    ],
+    callbacks:{
+        async jwt({token, account, profile})
+        {
+            // omitted...
+            if(account) 
+            {
+                // omitted...
+            }
+            else if(Date.now() < token.expires_at * 1000) 
+            {
+                // omitted...
+            }
+            else    // Refresh Token 
+            {
+                console.log("Token expired, refreshing...");
+                if (!token.refresh_token) throw new TypeError("Missing refresh_token");
+
+                try
+                {
+                    const tokenEndpoint = `${authHost}/auth/oauth2/token`;
+                    const params = new URLSearchParams({
+                        client_id: "front-client",
+                        client_secret: "654321",
+                        grant_type: "refresh_token",
+                        refresh_token: token.refresh_token!
+                    });
+
+                    const response = await fetch(tokenEndpoint, {
+                        method: "POST",
+                        body: params,
+                    });
+
+                    const tokensOrError = await response.json();
+
+                    if (!response.ok) throw tokensOrError;
+
+                    const newTokens = tokensOrError as {
+                        access_token: string
+                        expires_in: number
+                        refresh_token?: string
+                    }
+
+                    return {
+                        ...token,
+                        access_token: newTokens.access_token,
+                        expires_at: Math.floor(Date.now() / 1000 + newTokens.expires_in),
+                        // Some providers only issue refresh tokens once, so preserve if we did not get a new one
+                        refresh_token: newTokens.refresh_token || token.refresh_token
+                    }
+                }
+                catch(error)
+                {
+                    console.error("Error refreshing access_token", error)
+                    // If we fail to refresh the token, return an error so we can handle it on the page
+                    token.error = "RefreshTokenError"
+                    return token
+                }
+            }
+        },
+        async session({session, token})
+        {
+            session.user = {name: token.name, email: token.email};
+            session.access_token = token.access_token;
+            session.error = token.error;
+            return session;
+        }
+    }
+};
+```
+
+Edit `test-front\src\ui\PrivatePage.tsx` add error handling if refresh token failed, i.e ask user to sign in again
+
+```tsx
+export default function PrivatePage()
+{
+    const { data: session } = useSession();
+    console.log("PrivatePage session", session);
+
+    if (session?.error === "RefreshTokenError")
+    {
+        // If the session has an error, we need to sign in again
+        signIn();
+    }
+
+    // Other code omitted...
+}
+```
